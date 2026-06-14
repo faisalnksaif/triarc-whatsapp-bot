@@ -14,6 +14,7 @@ export interface Answer {
   type: QuestionType
   answer: string
   answeredAt: string
+  contactName: string
 }
 
 export interface SessionRecord {

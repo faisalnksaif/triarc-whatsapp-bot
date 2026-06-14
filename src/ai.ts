@@ -6,6 +6,7 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 export interface QA {
   question: string
   answer: string
+  contactName: string
 }
 
 export interface SetData {
@@ -91,21 +92,27 @@ export async function answerQuestion(
   const dataText = recipients
     .map(r => {
       const sets = r.sets
-        .map(s => `  ${s.category}:\n${s.qa.map(q => `    • ${q.question}: ${q.answer}`).join('\n')}`)
+        .map(s =>
+          `  ${s.category}:\n` +
+          s.qa.map(q => `    • ${q.question}: ${q.answer}${q.contactName ? ` [${q.contactName}]` : ''}`).join('\n')
+        )
         .join('\n')
-      return `--- ${r.name} (${label}) ---\n${sets}`
+      return `=== SITE: ${r.name} (${label}) ===\n${sets}`
     })
     .join('\n\n')
 
-  const prompt = `You are a construction project management assistant with access to site report data. Answer the project manager's question as specifically as possible using only the data provided.
+  const prompt = `You are a construction project management assistant. You have access to daily site report data collected from multiple construction site WhatsApp groups. Each site is a separate group; responses are answered by site staff whose names appear in [brackets] after each answer.
 
 QUESTION: "${question}"
 
-AVAILABLE DATA:
+AVAILABLE DATA (${recipients.length} site${recipients.length !== 1 ? 's' : ''}):
 ${dataText}
 
 INSTRUCTIONS:
 - Answer the specific question directly — don't generate a generic report
+- When reporting across multiple sites, summarise per site then give an overall picture
+- When a site filter is implied in the question, focus only on that site
+- Attribute notable answers to the staff member who gave them when relevant
 - If the question asks about upcoming events or plans, look for "tomorrow's plan", "scheduled work", or similar fields
 - If the question asks about a specific topic (materials, workers, safety, etc.), focus only on that
 - If the data doesn't contain enough information to answer, say so clearly

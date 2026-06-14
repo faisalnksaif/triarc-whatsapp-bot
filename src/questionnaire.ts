@@ -72,7 +72,7 @@ export class Questionnaire {
     this.session.awaitingReply = true
   }
 
-  async handleTextReply(text: string): Promise<void> {
+  async handleTextReply(text: string, contactName = ''): Promise<void> {
     if (!this.session?.awaitingReply) return
 
     if (this.session.awaitingLanguage) {
@@ -92,10 +92,10 @@ export class Questionnaire {
     }
 
     const answer = normalise(text, q)
-    await this.recordAnswer(q, answer)
+    await this.recordAnswer(q, answer, contactName)
   }
 
-  private async recordAnswer(q: Question, answer: string): Promise<void> {
+  private async recordAnswer(q: Question, answer: string, contactName: string): Promise<void> {
     if (!this.session) return
 
     const entry: Answer = {
@@ -104,6 +104,7 @@ export class Questionnaire {
       type: q.type,
       answer,
       answeredAt: new Date().toISOString(),
+      contactName,
     }
 
     this.session.responses.push(entry)

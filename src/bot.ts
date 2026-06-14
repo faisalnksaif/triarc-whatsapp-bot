@@ -48,12 +48,15 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       return
     }
 
-    let recipientName = targetJid
-    try {
-      const contact = await client.getContactById(targetJid)
-      recipientName = contact.name || contact.pushname || contact.number || targetJid
-    } catch {
-      // non-fatal — fall back to JID
+    const configRecipient = config.recipients.find(r => toJid(r) === targetJid)
+    let recipientName = configRecipient?.name ?? targetJid
+    if (!configRecipient?.name) {
+      try {
+        const contact = await client.getContactById(targetJid)
+        recipientName = contact.name || contact.pushname || contact.number || targetJid
+      } catch {
+        // non-fatal — fall back to JID
+      }
     }
 
     const sendText = async (text: string): Promise<void> => {
@@ -159,11 +162,20 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
     const selected: string = vote.selectedOptions?.[0]?.name ?? ''
     if (!selected) return
 
-    console.log(`[bot] Poll vote from ${targetJid}: "${selected}"`)
+    const voterJid: string = vote.voter ?? ''
+    let contactName = voterJid
+    try {
+      const contact = await client.getContactById(voterJid)
+      contactName = contact.name || contact.pushname || contact.number || voterJid
+    } catch {
+      // non-fatal
+    }
+
+    console.log(`[bot] Poll vote from ${contactName}: "${selected}"`)
     pendingPolls.delete(pollId)
 
     const session = activeSessions.get(targetJid)
-    if (session) await session.handleTextReply(selected)
+    if (session) await session.handleTextReply(selected, contactName)
   })
 
   // ── incoming messages ───────────────────────────────────────────────────────
@@ -237,8 +249,15 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
 
     const isGroup = fromJid.endsWith('@g.us')
     const sender = isGroup ? (msg.author ?? fromJid) : fromJid
-    console.log(`[bot] Reply from ${sender}: "${text.trim()}"`)
-    await session.handleTextReply(text)
+    let contactName = sender
+    try {
+      const contact = await msg.getContact()
+      contactName = contact.name || contact.pushname || contact.number || sender
+    } catch {
+      // non-fatal
+    }
+    console.log(`[bot] Reply from ${contactName}: "${text.trim()}"`)
+    await session.handleTextReply(text, contactName)
   }
 
   // message = received from others; message_create = sent by this client (owner trigger)

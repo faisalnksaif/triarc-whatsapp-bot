@@ -60,7 +60,7 @@ export async function generateReport(query: ReportQuery): Promise<string[]> {
         if (!groupMap.has(q.set_id)) {
           groupMap.set(q.set_id, { title_en: set.title_en, schedule_time: set.schedule_time, qa: [] })
         }
-        groupMap.get(q.set_id)!.qa.push({ question: q.question_en, answer: resp.answer })
+        groupMap.get(q.set_id)!.qa.push({ question: q.question_en, answer: resp.answer, contactName: resp.contactName ?? '' })
       }
     }
 

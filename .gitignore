@@ -4,4 +4,3 @@ auth/
 responses/
 *.log
 .env
-config.dev.json

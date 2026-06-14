@@ -1,0 +1,7 @@
+{
+  "_recipient_formats": "phone number (+2348012345678) OR group JID (120363xxxxxxxx@g.us) — run the bot once to see group JIDs printed in the console",
+  "recipients": ["140226420846782@lid"],
+  "timezone": "Asia/Kolkata",
+  "questionsFile": "data/questions.json",
+  "responsesDir": "responses"
+}

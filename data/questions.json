@@ -1,0 +1,644 @@
+[
+  {
+    "title": "⁠പൊതുവായ സൈറ്റ് സ്ഥിതി",
+    "scheduleTime": "6:05",
+    "questions": [
+      {
+        "id": "q1",
+        "question": "ഇന്നത്തെ സൈറ്റിന്റെ മൊത്തം പുരോഗതി എങ്ങനെയായിരുന്നു?",
+        "type": "poll",
+        "options": [
+          "Good",
+          "Average",
+          "Bad"
+        ]
+      },
+      {
+        "id": "q2",
+        "question": "ഇന്ന് പ്ലാൻ ചെയ്ത ജോലികൾ പൂർത്തിയായോ?",
+        "type": "poll",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "id": "q3",
+        "question": "പൂർത്തിയാകാത്ത ജോലികൾ എന്തൊക്കെയാണ്?",
+        "type": "text"
+      },
+      {
+        "id": "q4",
+        "question": "ഇന്ന് സൈറ്റിൽ എന്തെങ്കിലും പ്രധാന പ്രശ്നങ്ങൾ ഉണ്ടായോ?",
+        "type": "poll",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "id": "q5",
+        "question": "നാളത്തേക്കുള്ള പ്രധാന ജോലികൾ എന്തൊക്കെയാണ്?",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "title": "തൊഴിലാളികളുടെ വിവരങ്ങൾ",
+    "scheduleTime": "7:54",
+    "questions": [
+      {
+        "id": "q6",
+        "question": "ഇന്ന് ആകെ എത്ര തൊഴിലാളികൾ ഉണ്ടായിരുന്നു?",
+        "type": "number"
+      },
+      {
+        "id": "q7",
+        "question": "Skilled തൊഴിലാളികൾ എത്ര പേർ?",
+        "type": "number"
+      },
+      {
+        "id": "q8",
+        "question": "Unskilled തൊഴിലാളികൾ എത്ര പേർ?",
+        "type": "number"
+      },
+      {
+        "id": "q9",
+        "question": "Mason എത്ര പേർ?",
+        "type": "number"
+      },
+      {
+        "id": "q10",
+        "question": "Carpenter എത്ര പേർ?",
+        "type": "number"
+      },
+      {
+        "id": "q11",
+        "question": "Steel Fixer എത്ര പേർ?",
+        "type": "number"
+      },
+      {
+        "id": "q12",
+        "question": "Electrician എത്ര പേർ?",
+        "type": "number"
+      },
+      {
+        "id": "q13",
+        "question": "Plumber എത്ര പേർ?",
+        "type": "number"
+      },
+      {
+        "id": "q14",
+        "question": "Painter എത്ര പേർ?",
+        "type": "number"
+      },
+      {
+        "id": "q15",
+        "question": "തൊഴിലാളികളുടെ ഹാജർ കുറവുണ്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q16",
+        "question": "പുതിയ തൊഴിലാളികൾ വന്നിട്ടുണ്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q17",
+        "question": "തൊഴിലാളികളുമായി ബന്ധപ്പെട്ട പ്രശ്നങ്ങളുണ്ടോ?",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "title": "പ്രവൃത്തി പുരോഗതി",
+    "scheduleTime": "6:10",
+    "questions": [
+      {
+        "id": "q18",
+        "question": "ഇന്ന് ഏത് ജോലികളാണ് പൂർത്തിയായത്?",
+        "type": "text"
+      },
+      {
+        "id": "q19",
+        "question": "Foundation work എത്ര ശതമാനം പൂർത്തിയായി?",
+        "type": "text"
+      },
+      {
+        "id": "q20",
+        "question": "Column work എത്ര ശതമാനം പൂർത്തിയായി?",
+        "type": "text"
+      },
+      {
+        "id": "q21",
+        "question": "Beam work എത്ര ശതമാനം പൂർത്തിയായി?",
+        "type": "text"
+      },
+      {
+        "id": "q22",
+        "question": "Slab work എത്ര ശതമാനം പൂർത്തിയായി?",
+        "type": "text"
+      },
+      {
+        "id": "q23",
+        "question": "Brickwork എത്ര പൂർത്തിയായി?",
+        "type": "text"
+      },
+      {
+        "id": "q24",
+        "question": "Plastering എത്ര പൂർത്തിയായി?",
+        "type": "text"
+      },
+      {
+        "id": "q25",
+        "question": "Flooring എത്ര പൂർത്തിയായി?",
+        "type": "text"
+      },
+      {
+        "id": "q26",
+        "question": "Painting എത്ര പൂർത്തിയായി?",
+        "type": "text"
+      },
+      {
+        "id": "q27",
+        "question": "MEP works എത്ര പൂർത്തിയായി?",
+        "type": "text"
+      },
+      {
+        "id": "q28",
+        "question": "External works എത്ര പൂർത്തിയായി?",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "title": "കോൺക്രീറ്റ് ജോലികൾ",
+    "scheduleTime": "6:15",
+    "questions": [
+      {
+        "id": "q29",
+        "question": "ഇന്ന് Concrete casting നടന്നോ?",
+        "type": "text"
+      },
+      {
+        "id": "q30",
+        "question": "എത്ര Cubic Meter Concrete ഉപയോഗിച്ചു?",
+        "type": "text"
+      },
+      {
+        "id": "q31",
+        "question": "Concrete Grade എന്തായിരുന്നു?",
+        "type": "text"
+      },
+      {
+        "id": "q32",
+        "question": "Cube Test എടുത്തോ?",
+        "type": "text"
+      },
+      {
+        "id": "q33",
+        "question": "Vibration ശരിയായി ചെയ്തോ?",
+        "type": "text"
+      },
+      {
+        "id": "q34",
+        "question": "Curing ആരംഭിച്ചോ?",
+        "type": "text"
+      },
+      {
+        "id": "q35",
+        "question": "Concrete സംബന്ധമായ പ്രശ്നങ്ങളുണ്ടോ?",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "title": "സ്റ്റീൽ ജോലികൾ",
+    "scheduleTime": "6:20",
+    "questions": [
+      {
+        "id": "q36",
+        "question": "ഇന്ന് എത്ര Steel ഉപയോഗിച്ചു?",
+        "type": "text"
+      },
+      {
+        "id": "q37",
+        "question": "Steel Cutting പൂർത്തിയായോ?",
+        "type": "text"
+      },
+      {
+        "id": "q38",
+        "question": "Steel Bending പൂർത്തിയായോ?",
+        "type": "text"
+      },
+      {
+        "id": "q39",
+        "question": "Steel Fixing പരിശോധിച്ചോ?",
+        "type": "text"
+      },
+      {
+        "id": "q40",
+        "question": "Approved Drawing അനുസരിച്ചാണോ ജോലി?",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "title": "ഷട്ടറിംഗ് ജോലികൾ",
+    "scheduleTime": "6:25",
+    "questions": [
+      {
+        "id": "q41",
+        "question": "Shuttering work എത്ര പൂർത്തിയായി?",
+        "type": "text"
+      },
+      {
+        "id": "q42",
+        "question": "Alignment പരിശോധിച്ചോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q43",
+        "question": "Level പരിശോധിച്ചോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q44",
+        "question": "De-shuttering എപ്പോൾ ചെയ്യും?",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "title": "മെറ്റീരിയൽ സ്റ്റാറ്റസ്",
+    "scheduleTime": "6:40",
+    "questions": [
+      {
+        "id": "q45",
+        "question": "Cement Stock എത്ര ബാക്കി?",
+        "type": "number"
+      },
+      {
+        "id": "q46",
+        "question": "Steel Stock എത്ര ബാക്കി?",
+        "type": "number"
+      },
+      {
+        "id": "q47",
+        "question": "Sand Stock എത്ര ബാക്കി?",
+        "type": "number"
+      },
+      {
+        "id": "q48",
+        "question": "Aggregate Stock എത്ര ബാക്കി?",
+        "type": "number"
+      },
+      {
+        "id": "q49",
+        "question": "Brick/Block Stock എത്ര ബാക്കി?",
+        "type": "number"
+      },
+      {
+        "id": "q50",
+        "question": "എന്തെങ്കിലും മെറ്റീരിയൽ കുറവുണ്ടോ?",
+        "type": "text"
+      },
+      {
+        "id": "q51",
+        "question": "അടിയന്തിരമായി വാങ്ങേണ്ട മെറ്റീരിയലുകൾ എന്തൊക്കെയാണ്?",
+        "type": "text"
+      },
+      {
+        "id": "q52",
+        "question": "Material Delivery ലഭിച്ചോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q53",
+        "question": "Delivery Pending ഉണ്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      }
+    ]
+  },
+  {
+    "title": "ഗുണനിലവാര നിയന്ത്രണം (Quality)",
+    "scheduleTime": "6:42",
+    "questions": [
+      {
+        "id": "q54",
+        "question": "ഇന്ന് Quality Inspection നടത്തിയോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q55",
+        "question": "Drawing അനുസരിച്ചാണോ ജോലി?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q56",
+        "question": "Rework ആവശ്യമുള്ള ഭാഗങ്ങളുണ്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q57",
+        "question": "Client/Consultant Remarks ഉണ്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q58",
+        "question": "Quality Issues റിപ്പോർട്ട് ചെയ്തോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      }
+    ]
+  },
+  {
+    "title": "സുരക്ഷ (Safety)",
+    "scheduleTime": "6:44",
+    "questions": [
+      {
+        "id": "q59",
+        "question": "Safety Toolbox Meeting നടത്തിയോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q60",
+        "question": "PPE ഉപയോഗിക്കുന്നുണ്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q61",
+        "question": "Safety Violation ഉണ്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q62",
+        "question": "Accident ഉണ്ടായോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q63",
+        "question": "Near Miss Incident ഉണ്ടായോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q64",
+        "question": "Safety Signage ശരിയായുണ്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q65",
+        "question": "Scaffolding സുരക്ഷിതമാണോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      }
+    ]
+  },
+  {
+    "title": "ഉപകരണങ്ങൾ (Equipment)",
+    "scheduleTime": "6:46",
+    "questions": [
+      {
+        "id": "q66",
+        "question": "ഇന്ന് ഉപയോഗിച്ച Equipment എന്തൊക്കെയാണ്?",
+        "type": "text"
+      },
+      {
+        "id": "q67",
+        "question": "Equipment Breakdown ഉണ്ടായോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q68",
+        "question": "Generator പ്രവർത്തിക്കുന്നുണ്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q69",
+        "question": "Concrete Mixer പ്രവർത്തിക്കുന്നുണ്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q70",
+        "question": "Vibrator പ്രവർത്തിക്കുന്നുണ്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q71",
+        "question": "Equipment Maintenance ആവശ്യമുണ്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      }
+    ]
+  },
+  {
+    "title": "കാലാവസ്ഥ",
+    "scheduleTime": "6:48",
+    "questions": [
+      {
+        "id": "q72",
+        "question": "ഇന്ന് കാലാവസ്ഥ എങ്ങനെയായിരുന്നു?",
+        "type": "poll",
+        "options": ["Sunny", "Cloudy", "Rainy"]
+      },
+      {
+        "id": "q73",
+        "question": "മഴ മൂലം ജോലി തടസ്സപ്പെട്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q74",
+        "question": "Weather Delay ഉണ്ടായോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      }
+    ]
+  },
+  {
+    "title": "ക്ലയന്റ് / കൺസൾട്ടന്റ് അപ്ഡേറ്റ്",
+    "scheduleTime": "6:49",
+    "questions": [
+      {
+        "id": "q75",
+        "question": "Client Site Visit ഉണ്ടായോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q76",
+        "question": "Consultant Site Visit ഉണ്ടായോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q77",
+        "question": "എന്തെങ്കിലും നിർദ്ദേശങ്ങൾ നൽകിയോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q78",
+        "question": "Pending Approvals ഉണ്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q79",
+        "question": "Drawing Approval ലഭിച്ചോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      }
+    ]
+  },
+  {
+    "title": "സാമ്പത്തികം",
+    "scheduleTime": "7:34",
+    "questions": [
+      {
+        "id": "q80",
+        "question": "Labour Payment Pending ഉണ്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q81",
+        "question": "Supplier Payment Pending ഉണ്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q82",
+        "question": "Extra Work നടന്നോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q83",
+        "question": "Variation Work ഉണ്ടായോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      }
+    ]
+  },
+  {
+    "title": "രേഖകളും റിപ്പോർട്ടുകളും",
+    "scheduleTime": "7:41",
+    "questions": [
+      {
+        "id": "q84",
+        "question": "Daily Report തയ്യാറാക്കിയോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q85",
+        "question": "Site Photos അയച്ചോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q86",
+        "question": "Measurement എടുത്തോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q87",
+        "question": "Work Progress Photos ലഭ്യമാണോ?",
+        "type": "text"
+      },
+      {
+        "id": "q88",
+        "question": "Material Receipt രേഖപ്പെടുത്തിയിട്ടുണ്ടോ?",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "title": "നാളത്തേക്കുള്ള പദ്ധതി",
+    "scheduleTime": "7:44",
+    "questions": [
+      {
+        "id": "q89",
+        "question": "നാളെ ഏത് ജോലികൾ ചെയ്യാനാണ് പദ്ധതി?",
+        "type": "text"
+      },
+      {
+        "id": "q90",
+        "question": "നാളത്തേക്ക് ആവശ്യമായ തൊഴിലാളികൾ എത്ര?",
+        "type": "text"
+      },
+      {
+        "id": "q91",
+        "question": "നാളത്തേക്ക് ആവശ്യമായ മെറ്റീരിയലുകൾ എന്തൊക്കെയാണ്?",
+        "type": "text"
+      },
+      {
+        "id": "q92",
+        "question": "നാളത്തേക്ക് ആവശ്യമായ Equipment എന്തൊക്കെയാണ്?",
+        "type": "text"
+      },
+      {
+        "id": "q93",
+        "question": "Project Schedule പ്രകാരം നാം മുന്നിലാണോ പിന്നിലാണോ?",
+        "type": "text"
+      },
+      {
+        "id": "q94",
+        "question": "Schedule Delay ഉണ്ടെങ്കിൽ കാരണം എന്താണ്?",
+        "type": "text"
+      },
+      {
+        "id": "q95",
+        "question": "Project Completion Date ബാധിക്കുമോ?",
+        "type": "text"
+      },
+      {
+        "id": "q96",
+        "question": "Head Office Support എന്തെങ്കിലും ആവശ്യമുണ്ടോ?",
+        "type": "poll",
+        "options": ["Yes", "No"]
+      },
+      {
+        "id": "q97",
+        "question": "ഉടൻ പരിഹരിക്കേണ്ട പ്രശ്നങ്ങൾ എന്തൊക്കെയാണ്?",
+        "type": "text"
+      },
+      {
+        "id": "q98",
+        "question": "Client Complaint ഉണ്ടോ?",
+        "type": "text"
+      },
+      {
+        "id": "q99",
+        "question": "പ്രധാന റിസ്കുകൾ എന്തൊക്കെയാണ്?",
+        "type": "text"
+      },
+      {
+        "id": "q100",
+        "question": "ഇന്ന് Project Manager അറിയേണ്ട ഏറ്റവും പ്രധാനപ്പെട്ട കാര്യം എന്താണ്?",
+        "type": "text"
+      }
+    ]
+  }
+]

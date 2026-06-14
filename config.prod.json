@@ -3,7 +3,7 @@
   "recipients": [
     { "name": "Kamaru Residence", "id": "120363303804815444@g.us" }
   ],
-  "adminGroup": "166636157976823@lid",
+  "adminGroup": "120363427696640654@g.us",
   "timezone": "Asia/Kolkata",
   "questionsFile": "data/questions.json",
   "responsesDir": "responses"

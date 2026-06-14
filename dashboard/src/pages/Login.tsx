@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 
 const CREDENTIALS = {
-  email: 'admin@gmail.com',
+  username: 'admin',
   password: 'admin123',
 }
 
@@ -10,7 +10,7 @@ interface Props {
 }
 
 export default function Login({ onLogin }: Props) {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -21,11 +21,11 @@ export default function Login({ onLogin }: Props) {
     setLoading(true)
 
     setTimeout(() => {
-      if (email === CREDENTIALS.email && password === CREDENTIALS.password) {
+      if (username === CREDENTIALS.username && password === CREDENTIALS.password) {
         localStorage.setItem('dashboard_auth', '1')
         onLogin()
       } else {
-        setError('Invalid email or password.')
+        setError('Invalid username or password.')
         setLoading(false)
       }
     }, 400)
@@ -40,13 +40,13 @@ export default function Login({ onLogin }: Props) {
 
         <form className="login-form" onSubmit={handleSubmit}>
           <div className="login-field">
-            <label className="login-label">Email</label>
+            <label className="login-label">Username</label>
             <input
               className="login-input"
-              type="email"
-              placeholder="admin@gmail.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
+              type="text"
+              placeholder="username"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
               autoFocus
               required
             />

@@ -1,5 +1,5 @@
 import { supabase } from './db.js'
-import { answerQuestion, type RecipientData } from './ai.js'
+import { answerQuestion, type RecipientData, type QA } from './ai.js'
 import type { Answer } from './types.js'
 import type { ReportQuery } from './commands.js'
 
@@ -49,7 +49,7 @@ export async function generateReport(query: ReportQuery): Promise<string[]> {
   }
 
   function buildRecipientData(name: string, rSessions: any[]): RecipientData {
-    const groupMap = new Map<string, { title_en: string; schedule_time: string; qa: { question: string; answer: string }[] }>()
+    const groupMap = new Map<string, { title_en: string; schedule_time: string; qa: QA[] }>()
 
     for (const session of rSessions) {
       for (const resp of session.responses as Answer[]) {

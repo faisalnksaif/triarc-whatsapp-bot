@@ -1,6 +1,12 @@
 import 'dotenv/config'
+import { createServer } from 'http'
 import { loadConfig, loadQuestionsFromSupabase } from './config.js'
 import { startBot } from './bot.js'
+
+const PORT = process.env.PORT ? Number(process.env.PORT) : 9001
+createServer((_, res) => res.end('ok')).listen(PORT, () => {
+  console.log(`[health] Listening on port ${PORT}`)
+})
 
 async function main() {
   console.log('🤖 Triarc WhatsApp Bot starting...')

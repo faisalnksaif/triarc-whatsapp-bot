@@ -3,3 +3,4 @@ dist/
 auth/
 responses/
 *.log
+.env

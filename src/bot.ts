@@ -5,16 +5,24 @@ import { resolve } from 'path'
 import { toJid } from './config.js'
 import { scheduleQuestionnaire } from './scheduler.js'
 import { Questionnaire } from './questionnaire.js'
+import { saveSession } from './storage.js'
+import { generateReport } from './reporter.js'
+import { parseReportIntent } from './ai.js'
 import type { BotConfig, QuestionnaireSet } from './types.js'
 
 export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Promise<void> {
   const scheduledJids = config.recipients.map(toJid)
   let cronRegistered = false
 
-  // keyed by JID — one session per recipient, all concurrent
+  // keyed by JID — one active session per recipient at a time
   const activeSessions = new Map<string, Questionnaire>()
   // keyed by poll message ID → JID, so vote_update can find the right session
   const pendingPolls = new Map<string, string>()
+  // queued sets per JID — worked through one by one after the active session finishes
+  const sessionQueues = new Map<string, QuestionnaireSet[]>()
+  // Timestamp until which fromMe messages in the admin group should be ignored.
+  // Extended on every bot send to prevent feedback loops (message_create fires before sendMessage resolves).
+  let adminSendBlockedUntil = 0
 
   const client = new Client({
     authStrategy: new LocalAuth({ dataPath: resolve(process.cwd(), 'auth') }),
@@ -24,9 +32,19 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
     },
   })
 
+  function processQueue(targetJid: string): void {
+    const queue = sessionQueues.get(targetJid)
+    if (!queue || queue.length === 0) return
+    const next = queue.shift()!
+    startSession(targetJid, next).catch(err => console.error('[bot] Queue startSession error:', err))
+  }
+
   async function startSession(targetJid: string, set: QuestionnaireSet): Promise<void> {
     if (activeSessions.get(targetJid)?.isActive()) {
-      console.log(`[bot] Session already active for ${targetJid} — ignoring`)
+      console.log(`[bot] Session already active for ${targetJid} — queueing "${set.title}"`)
+      const queue = sessionQueues.get(targetJid) ?? []
+      queue.push(set)
+      sessionQueues.set(targetJid, queue)
       return
     }
 
@@ -58,15 +76,20 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       set.questions,
       targetJid,
       recipientName,
-      config.responsesDir,
+      saveSession,
       sendText,
       sendChoices,
+      () => {
+        activeSessions.delete(targetJid)
+        processQueue(targetJid)
+      },
     )
 
     activeSessions.set(targetJid, questionnaire)
     questionnaire.start().catch(err => {
       console.error('[bot] Failed to start questionnaire:', err)
       activeSessions.delete(targetJid)
+      processQueue(targetJid)
     })
   }
 
@@ -88,10 +111,22 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
     console.log(`[bot] Scheduled recipients: ${scheduledJids.join(', ')}`)
 
     if (!cronRegistered) {
+      const setsByTime = new Map<string, QuestionnaireSet[]>()
       for (const set of sets) {
-        scheduleQuestionnaire(set.scheduleTime, config.timezone, async () => {
+        const group = setsByTime.get(set.scheduleTime) ?? []
+        group.push(set)
+        setsByTime.set(set.scheduleTime, group)
+      }
+
+      for (const [time, timeSets] of setsByTime) {
+        scheduleQuestionnaire(time, config.timezone, async () => {
           for (const jid of scheduledJids) {
-            await startSession(jid, set)
+            const [first, ...rest] = timeSets
+            if (rest.length > 0) {
+              const queue = sessionQueues.get(jid) ?? []
+              sessionQueues.set(jid, [...queue, ...rest])
+            }
+            await startSession(jid, first)
           }
         })
       }
@@ -144,6 +179,39 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
     if (text.trim() === '!start') {
       console.log(`[bot] Manual trigger — starting questionnaire for ${fromJid}`)
       startSession(fromJid, sets[0]).catch(err => console.error('[bot] startSession error:', err))
+      return
+    }
+
+    // !report [YYYY-MM-DD] in admin group → send WhatsApp report
+    const adminGroup = config.adminGroup ? toJid(config.adminGroup) : null
+    const jidNum = (j: string) => j.split('@')[0]
+    const isAdminGroup = adminGroup != null && jidNum(fromJid) === jidNum(adminGroup)
+
+    // Skip bot's own messages in the admin group during the cooldown window.
+    if (isAdminGroup && msg.fromMe && Date.now() < adminSendBlockedUntil) {
+      return
+    }
+
+    if (isAdminGroup && text.trim().length > 0) {
+      // Resolve the chat object so we get the canonical @g.us JID — sendMessage with @lid JIDs
+      // doesn't route to groups correctly in whatsapp-web.js.
+      const chat = await msg.getChat()
+      const adminChatId: string = chat.id._serialized
+      const adminSend = async (body: string) => {
+        adminSendBlockedUntil = Date.now() + 5000
+        await client.sendMessage(adminChatId, body)
+      }
+      try {
+        const query = await parseReportIntent(text.trim())
+        console.log(`[bot] Report intent parsed: ${JSON.stringify(query)}`)
+        const messages = await generateReport(query)
+        for (const m of messages) {
+          await adminSend(m)
+        }
+      } catch (err) {
+        console.error('[bot] Report generation failed:', err)
+        await adminSend(`❌ Failed to generate report: ${(err as Error).message}`)
+      }
       return
     }
 

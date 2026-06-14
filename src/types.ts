@@ -3,6 +3,7 @@ export type QuestionType = 'text' | 'number' | 'poll'
 export interface Question {
   id: string
   question: string
+  question_en: string
   type: QuestionType
   options?: string[]
 }
@@ -26,12 +27,14 @@ export interface SessionRecord {
 
 export interface QuestionnaireSet {
   title: string
+  title_en: string
   scheduleTime: string
   questions: Question[]
 }
 
 export interface BotConfig {
   recipients: string[]
+  adminGroup?: string
   timezone: string
   questionsFile: string
   responsesDir: string
@@ -43,4 +46,6 @@ export interface ActiveSession {
   responses: Answer[]
   startedAt: string
   awaitingReply: boolean
+  awaitingLanguage: boolean
+  lang: 'en' | 'ml' | null
 }

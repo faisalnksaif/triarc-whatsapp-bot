@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
+import { supabase } from './db.js'
 import type { BotConfig, Question, QuestionnaireSet } from './types.js'
 
 export function loadConfig(): BotConfig {
@@ -68,4 +69,41 @@ export function toJid(recipient: string): string {
 export function timeToCron(scheduleTime: string): string {
   const [hours, minutes] = scheduleTime.split(':').map(Number)
   return `${minutes} ${hours} * * *`
+}
+
+export async function loadQuestionsFromSupabase(): Promise<QuestionnaireSet[]> {
+  const { data: sets, error } = await supabase
+    .from('questionnaire_sets')
+    .select(`
+      title,
+      title_en,
+      schedule_time,
+      questions (
+        question_id,
+        question,
+        question_en,
+        type,
+        options,
+        sort_order
+      )
+    `)
+    .order('schedule_time', { ascending: true })
+
+  if (error) throw new Error(`Failed to load questions from Supabase: ${error.message}`)
+  if (!sets || sets.length === 0) throw new Error('No questionnaire sets found in Supabase')
+
+  return sets.map((s: any) => ({
+    title: s.title,
+    title_en: s.title_en,
+    scheduleTime: s.schedule_time,
+    questions: (s.questions as any[])
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map(q => ({
+        id: q.question_id,
+        question: q.question,
+        question_en: q.question_en,
+        type: q.type,
+        ...(q.options ? { options: q.options } : {}),
+      } as Question)),
+  }))
 }

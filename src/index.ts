@@ -1,13 +1,14 @@
-import { loadConfig, loadQuestions } from './config.js'
+import 'dotenv/config'
+import { loadConfig, loadQuestionsFromSupabase } from './config.js'
 import { startBot } from './bot.js'
 
 async function main() {
   console.log('🤖 Triarc WhatsApp Bot starting...')
 
   const config = loadConfig()
-  const sets = loadQuestions(config.questionsFile)
+  const sets = await loadQuestionsFromSupabase()
 
-  console.log(`[init] Loaded ${sets.length} questionnaire set(s) from ${config.questionsFile}`)
+  console.log(`[init] Loaded ${sets.length} questionnaire set(s) from Supabase`)
   for (const set of sets) {
     console.log(`[init]   "${set.title}" — ${set.questions.length} questions @ ${set.scheduleTime}`)
   }

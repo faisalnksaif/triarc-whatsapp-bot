@@ -1,10 +1,11 @@
 import { validate, normalise } from './validator.js'
 import { generateSessionId } from './storage.js'
-import type { Question, Answer, ActiveSession, SessionRecord } from './types.js'
+import type { Question, Answer, ActiveSession, SessionRecord, PersistedSession } from './types.js'
 
 type SendText = (text: string) => Promise<void>
 type SendChoices = (question: string, options: string[]) => Promise<void>
 type SaveSession = (record: SessionRecord) => Promise<void>
+type OnPersist = (state: Pick<PersistedSession, 'responses' | 'currentIndex' | 'lang'>) => void
 
 const LANG_OPTIONS = ['English', 'Malayalam']
 
@@ -25,6 +26,7 @@ export class Questionnaire {
     private readonly title_en?: string,
     private readonly timezone = 'UTC',
     private readonly isQueued = false,
+    private readonly onPersist?: OnPersist,
   ) {}
 
   isActive(): boolean {
@@ -69,6 +71,38 @@ export class Questionnaire {
       ``,
       `_${count} question${count !== 1 ? 's' : ''} — won't take long_ ✅`,
     ].join('\n')
+  }
+
+  async resume(persisted: Pick<PersistedSession, 'responses' | 'currentIndex' | 'lang' | 'startedAt'>): Promise<void> {
+    this.session = {
+      questions: this.questions,
+      currentIndex: persisted.currentIndex,
+      responses: persisted.responses,
+      startedAt: persisted.startedAt,
+      awaitingReply: false,
+      awaitingLanguage: persisted.lang === null,
+      lang: persisted.lang,
+    }
+
+    const answered = persisted.currentIndex
+    const total = this.questions.length
+    const titleLine = [this.title_en, this.title].filter(Boolean).join(' • ')
+
+    console.log(`[questionnaire] Resuming session — ${answered}/${total} already answered`)
+
+    await this.sendText(
+      `🔄 *We're back!*\n\n` +
+      `The bot restarted but your session is safe.\n` +
+      `📋 *${titleLine}*\n` +
+      `_Continuing from question ${answered + 1} of ${total}..._`
+    )
+
+    if (persisted.lang === null) {
+      await this.sendChoices('Please select your preferred language\nഭാഷ തിരഞ്ഞെടുക്കുക', LANG_OPTIONS)
+      this.session.awaitingReply = true
+    } else {
+      await this.sendCurrentQuestion()
+    }
   }
 
   async start(): Promise<void> {
@@ -138,6 +172,7 @@ export class Questionnaire {
       this.session.awaitingReply = false
       console.log(`[questionnaire] Language set to: ${lang}`)
       this.onLanguageSelected?.(lang)
+      this.onPersist?.({ responses: this.session.responses, currentIndex: this.session.currentIndex, lang })
       await this.sendCurrentQuestion()
       return
     }
@@ -170,6 +205,7 @@ export class Questionnaire {
     this.session.awaitingReply = false
 
     console.log(`[questionnaire] Q${this.session.currentIndex} answered: "${answer}"`)
+    this.onPersist?.({ responses: this.session.responses, currentIndex: this.session.currentIndex, lang: this.session.lang })
 
     if (this.isComplete()) {
       await this.finish()

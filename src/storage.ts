@@ -1,5 +1,5 @@
 import { supabase } from './db.js'
-import type { SessionRecord } from './types.js'
+import type { SessionRecord, PersistedSession } from './types.js'
 
 export function generateSessionId(): string {
   return `session_${new Date().toISOString().replace(/[:.]/g, '-')}`
@@ -17,4 +17,44 @@ export async function saveSession(record: SessionRecord): Promise<void> {
 
   if (error) throw new Error(`[storage] Failed to save session: ${error.message}`)
   console.log(`[storage] Session saved: ${record.sessionId}`)
+}
+
+export async function upsertActiveSession(s: PersistedSession): Promise<void> {
+  const { error } = await supabase.from('active_sessions').upsert({
+    jid: s.jid,
+    recipient_name: s.recipientName,
+    set_title: s.setTitle ?? null,
+    set_title_en: s.setTitleEn ?? null,
+    questions: s.questions,
+    responses: s.responses,
+    current_index: s.currentIndex,
+    lang: s.lang ?? null,
+    started_at: s.startedAt,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'jid' })
+  if (error) console.error('[storage] Failed to persist active session:', error.message)
+}
+
+export async function clearActiveSession(jid: string): Promise<void> {
+  const { error } = await supabase.from('active_sessions').delete().eq('jid', jid)
+  if (error) console.error('[storage] Failed to clear active session:', error.message)
+}
+
+export async function loadActiveSessions(): Promise<PersistedSession[]> {
+  const { data, error } = await supabase.from('active_sessions').select('*')
+  if (error) {
+    console.error('[storage] Failed to load active sessions:', error.message)
+    return []
+  }
+  return (data ?? []).map((r: any) => ({
+    jid: r.jid,
+    recipientName: r.recipient_name,
+    setTitle: r.set_title ?? undefined,
+    setTitleEn: r.set_title_en ?? undefined,
+    questions: r.questions,
+    responses: r.responses,
+    currentIndex: r.current_index,
+    lang: r.lang ?? null,
+    startedAt: r.started_at,
+  }))
 }

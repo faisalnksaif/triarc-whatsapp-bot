@@ -5,7 +5,7 @@ import { resolve } from 'path'
 import { toJid } from './config.js'
 import { scheduleQuestionnaire } from './scheduler.js'
 import { Questionnaire } from './questionnaire.js'
-import { saveSession } from './storage.js'
+import { saveSession, upsertActiveSession, clearActiveSession, loadActiveSessions } from './storage.js'
 import { generateReport } from './reporter.js'
 import { parseReportIntent } from './ai.js'
 import type { BotConfig, QuestionnaireSet } from './types.js'
@@ -101,7 +101,7 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       set.questions,
       targetJid,
       recipientName,
-      saveSession,
+      async (record) => { await saveSession(record); await clearActiveSession(targetJid) },
       sendText,
       sendChoices,
       () => {
@@ -114,6 +114,17 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       set.title_en,
       config.timezone,
       hasGreetedToday(targetJid),
+      (state) => upsertActiveSession({
+        jid: targetJid,
+        recipientName,
+        setTitle: set.title,
+        setTitleEn: set.title_en,
+        questions: set.questions,
+        responses: state.responses,
+        currentIndex: state.currentIndex,
+        lang: state.lang,
+        startedAt: new Date().toISOString(),
+      }),
     )
     markGreeted(targetJid)
 
@@ -137,7 +148,7 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
     process.stdout.write('\n' + '='.repeat(60) + '\n\n')
   })
 
-  client.on('ready', () => {
+  client.on('ready', async () => {
     const name = client.info.pushname ?? client.info.wid.user
     console.log(`[bot] ✅ Connected to WhatsApp as ${name}`)
     console.log(`[bot] Scheduled recipients: ${scheduledJids.join(', ')}`)
@@ -163,6 +174,55 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
         })
       }
       cronRegistered = true
+    }
+
+    // Restore any sessions that were active when the bot last stopped
+    const persisted = await loadActiveSessions()
+    if (persisted.length > 0) {
+      console.log(`[bot] Restoring ${persisted.length} interrupted session(s)...`)
+      for (const p of persisted) {
+        if (activeSessions.has(p.jid)) continue  // already running (shouldn't happen, but guard)
+
+        const sendText = async (text: string) => { await client.sendMessage(p.jid, text) }
+        const sendChoices = async (question: string, options: string[]) => {
+          try {
+            const poll = new Poll(question, options, { allowMultipleAnswers: false })
+            const sent = await client.sendMessage(p.jid, poll)
+            pendingPolls.set(sent.id._serialized, p.jid)
+          } catch {
+            const optionList = options.map((o, i) => `${i + 1}. ${o}`).join('\n')
+            await sendText(`${question}\n\n${optionList}\n\n_Reply with a number_`)
+          }
+        }
+
+        const questionnaire = new Questionnaire(
+          p.questions,
+          p.jid,
+          p.recipientName,
+          async (record) => { await saveSession(record); await clearActiveSession(p.jid) },
+          sendText,
+          sendChoices,
+          () => {
+            activeSessions.delete(p.jid)
+            processQueue(p.jid)
+          },
+          p.lang ?? undefined,
+          (lang) => langCache.set(p.jid, { lang, date: todayLocal() }),
+          p.setTitle,
+          p.setTitleEn,
+          config.timezone,
+          true,  // treat as queued (no full greeting)
+          (state) => upsertActiveSession({ ...p, responses: state.responses, currentIndex: state.currentIndex, lang: state.lang }),
+        )
+
+        if (p.lang) langCache.set(p.jid, { lang: p.lang, date: todayLocal() })
+        markGreeted(p.jid)
+        activeSessions.set(p.jid, questionnaire)
+        questionnaire.resume(p).catch(err => {
+          console.error(`[bot] Failed to resume session for ${p.jid}:`, err)
+          activeSessions.delete(p.jid)
+        })
+      }
     }
   })
 

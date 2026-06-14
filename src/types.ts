@@ -55,3 +55,15 @@ export interface ActiveSession {
   awaitingLanguage: boolean
   lang: 'en' | 'ml' | null
 }
+
+export interface PersistedSession {
+  jid: string
+  recipientName: string
+  setTitle?: string
+  setTitleEn?: string
+  questions: Question[]
+  responses: Answer[]
+  currentIndex: number
+  lang: 'en' | 'ml' | null
+  startedAt: string
+}

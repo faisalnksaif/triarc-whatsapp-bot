@@ -21,12 +21,15 @@ export interface RecipientData {
 }
 
 const FORMAT_RULES = `
-FORMAT RULES:
-- Format for WhatsApp: use *bold* for headers and key points, _italic_ for notes
-- Use • for bullets (not dashes)
-- Use single newlines between items, blank line between sections
-- Do NOT use markdown headers (##) or HTML
-- Emojis are encouraged for visual scanning`
+FORMAT RULES (WhatsApp only — strict):
+- Use *bold* for section headers, site names, and key metrics
+- Use _italic_ for context, notes, or caveats
+- Use • for bullet points (never dashes or numbers unless ranking)
+- Blank line between sections, single newline between bullets
+- Do NOT use markdown headers (##), HTML, or tables
+- Lead every section with a relevant emoji so the reader can scan at a glance
+- Where numbers allow it, always show a percentage alongside (e.g. "8/10 workers present — 80%")
+- End with a short punchy *Overall Pulse* line that gives the manager a one-line feel for the day`
 
 // ── Step 1: Decode user's free-form message into a structured query ──────────
 
@@ -101,29 +104,32 @@ export async function answerQuestion(
     })
     .join('\n\n')
 
-  const prompt = `You are a construction project management assistant. You have access to daily site report data collected from multiple construction site WhatsApp groups. Each site is a separate group; responses are answered by site staff whose names appear in [brackets] after each answer.
+  const prompt = `You are a smart, friendly construction site intelligence assistant helping a project manager stay on top of multiple sites via WhatsApp. You have live data from daily site check-ins. Each answer was given by a named staff member shown in [brackets].
 
-QUESTION: "${question}"
+Your tone is confident, warm, and direct — like a smart site coordinator briefing the boss. Avoid robotic lists; make the report feel like a human wrote it.
 
-AVAILABLE DATA (${recipients.length} site${recipients.length !== 1 ? 's' : ''}):
+MANAGER'S REQUEST: "${question}"
+
+SITE DATA (${recipients.length} site${recipients.length !== 1 ? 's' : ''}):
 ${dataText}
 
 INSTRUCTIONS:
-- Answer the specific question directly — don't generate a generic report
-- When reporting across multiple sites, summarise per site then give an overall picture
-- When a site filter is implied in the question, focus only on that site
-- Attribute notable answers to the staff member who gave them when relevant
-- If the question asks about upcoming events or plans, look for "tomorrow's plan", "scheduled work", or similar fields
-- If the question asks about a specific topic (materials, workers, safety, etc.), focus only on that
-- If the data doesn't contain enough information to answer, say so clearly
-- Use ⚠️ for warnings, 🚨 for critical issues
+- Directly answer what the manager asked — don't pad with irrelevant sections
+- For each site, lead with the site name in bold and its headline status
+- Where numbers exist (workers, quantities, incidents), compute and show percentages or ratios
+- When reporting across multiple sites, give a per-site breakdown then an overall summary
+- Highlight wins 🟢, risks 🟡, and blockers 🔴 clearly
+- Attribute standout answers to the staff member who gave them (e.g. "Rajan noted…")
+- For plans/tomorrow sections, pull out concrete next steps
+- If data is missing or incomplete for a section, say so in one short line and move on
+- Close with a *Overall Pulse* line — one sentence that tells the manager how the day really went
 ${FORMAT_RULES}`
 
   const response = await client.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: 'gpt-4o',
     messages: [{ role: 'user', content: prompt }],
-    temperature: 0.4,
-    max_tokens: 1000,
+    temperature: 0.5,
+    max_tokens: 1500,
   })
 
   return response.choices[0].message.content ?? '❌ AI returned empty response.'

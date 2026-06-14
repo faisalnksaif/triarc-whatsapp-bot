@@ -20,9 +20,31 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
   const pendingPolls = new Map<string, string>()
   // queued sets per JID — worked through one by one after the active session finishes
   const sessionQueues = new Map<string, QuestionnaireSet[]>()
+  // language preference per JID — cached for the current day, reset at midnight
+  const langCache = new Map<string, { lang: 'en' | 'ml'; date: string }>()
+  // tracks whether the warm greeting has been sent to this JID today
+  const greetedCache = new Map<string, string>()
   // Timestamp until which fromMe messages in the admin group should be ignored.
   // Extended on every bot send to prevent feedback loops (message_create fires before sendMessage resolves).
   let adminSendBlockedUntil = 0
+
+  function todayLocal(): string {
+    return new Date().toLocaleDateString('en-CA', { timeZone: config.timezone })
+  }
+
+  function getCachedLang(jid: string): 'en' | 'ml' | undefined {
+    const entry = langCache.get(jid)
+    if (!entry) return undefined
+    return entry.date === todayLocal() ? entry.lang : undefined
+  }
+
+  function hasGreetedToday(jid: string): boolean {
+    return greetedCache.get(jid) === todayLocal()
+  }
+
+  function markGreeted(jid: string): void {
+    greetedCache.set(jid, todayLocal())
+  }
 
   const client = new Client({
     authStrategy: new LocalAuth({ dataPath: resolve(process.cwd(), 'auth') }),
@@ -86,7 +108,14 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
         activeSessions.delete(targetJid)
         processQueue(targetJid)
       },
+      getCachedLang(targetJid),
+      (lang) => langCache.set(targetJid, { lang, date: todayLocal() }),
+      set.title,
+      set.title_en,
+      config.timezone,
+      hasGreetedToday(targetJid),
     )
+    markGreeted(targetJid)
 
     activeSessions.set(targetJid, questionnaire)
     questionnaire.start().catch(err => {

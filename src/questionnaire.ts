@@ -19,6 +19,12 @@ export class Questionnaire {
     private readonly sendText: SendText,
     private readonly sendChoices: SendChoices,
     private readonly onComplete?: () => void,
+    private readonly initialLang?: 'en' | 'ml',
+    private readonly onLanguageSelected?: (lang: 'en' | 'ml') => void,
+    private readonly title?: string,
+    private readonly title_en?: string,
+    private readonly timezone = 'UTC',
+    private readonly isQueued = false,
   ) {}
 
   isActive(): boolean {
@@ -30,28 +36,78 @@ export class Questionnaire {
     return this.session.currentIndex >= this.session.questions.length
   }
 
+  private buildIntroMessage(): string {
+    const hour = Number(new Intl.DateTimeFormat('en', { hour: 'numeric', hour12: false, timeZone: this.timezone }).format(new Date()))
+
+    const titleLine = [this.title_en, this.title].filter(Boolean).join(' • ')
+    const count = this.questions.length
+
+    if (this.isQueued) {
+      return [
+        `📋 *${titleLine}*`,
+        ``,
+        `_One more — ${count} question${count !== 1 ? 's' : ''}, won't take long_ ✅`,
+      ].join('\n')
+    }
+
+    let greeting: string
+    if (hour < 12) {
+      greeting = `Good morning! ☀️\nLet's start the day fresh — hope it's a great one on site.`
+    } else if (hour < 17) {
+      greeting = `Good afternoon! 👋\nHope things are going well out there.`
+    } else if (hour < 21) {
+      greeting = `Good evening! 🌇\nAlmost there — just a quick check-in to wrap up the day.`
+    } else {
+      greeting = `Good night! 🌙\nWinding down for the day — just a few last questions before you rest.`
+    }
+
+    return [
+      greeting,
+      ``,
+      `Here is your next check-in:`,
+      `📋 *${titleLine}*`,
+      ``,
+      `_${count} question${count !== 1 ? 's' : ''} — won't take long_ ✅`,
+    ].join('\n')
+  }
+
   async start(): Promise<void> {
     if (this.session) {
       console.log('[questionnaire] Already active — ignoring start signal')
       return
     }
 
-    this.session = {
-      questions: this.questions,
-      currentIndex: 0,
-      responses: [],
-      startedAt: new Date().toISOString(),
-      awaitingReply: false,
-      awaitingLanguage: true,
-      lang: null,
-    }
+    await this.sendText(this.buildIntroMessage())
 
-    console.log('[questionnaire] Session started — asking language preference')
-    await this.sendChoices(
-      'Please select your preferred language\nഭാഷ തിരഞ്ഞെടുക്കുക',
-      LANG_OPTIONS,
-    )
-    this.session.awaitingReply = true
+    if (this.initialLang) {
+      this.session = {
+        questions: this.questions,
+        currentIndex: 0,
+        responses: [],
+        startedAt: new Date().toISOString(),
+        awaitingReply: false,
+        awaitingLanguage: false,
+        lang: this.initialLang,
+      }
+      console.log(`[questionnaire] Session started — using cached language: ${this.initialLang}`)
+      await this.sendCurrentQuestion()
+    } else {
+      this.session = {
+        questions: this.questions,
+        currentIndex: 0,
+        responses: [],
+        startedAt: new Date().toISOString(),
+        awaitingReply: false,
+        awaitingLanguage: true,
+        lang: null,
+      }
+      console.log('[questionnaire] Session started — asking language preference')
+      await this.sendChoices(
+        'Please select your preferred language\nഭാഷ തിരഞ്ഞെടുക്കുക',
+        LANG_OPTIONS,
+      )
+      this.session.awaitingReply = true
+    }
   }
 
   private async sendCurrentQuestion(): Promise<void> {
@@ -76,10 +132,12 @@ export class Questionnaire {
     if (!this.session?.awaitingReply) return
 
     if (this.session.awaitingLanguage) {
-      this.session.lang = text === 'English' ? 'en' : 'ml'
+      const lang: 'en' | 'ml' = text === 'English' ? 'en' : 'ml'
+      this.session.lang = lang
       this.session.awaitingLanguage = false
       this.session.awaitingReply = false
-      console.log(`[questionnaire] Language set to: ${this.session.lang}`)
+      console.log(`[questionnaire] Language set to: ${lang}`)
+      this.onLanguageSelected?.(lang)
       await this.sendCurrentQuestion()
       return
     }

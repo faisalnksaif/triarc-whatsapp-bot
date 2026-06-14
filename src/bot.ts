@@ -262,7 +262,7 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
 
   // message = received from others; message_create = sent by this client (owner trigger)
   client.on('message', handleMessage)
-  client.on('message_create', handleMessage)
+  client.on('message_create', (msg: any) => { if (msg.fromMe) handleMessage(msg) })
 
   await client.initialize()
 }

@@ -32,5 +32,6 @@ export interface Question {
   question_en: string
   type: string
   options: string[] | null
+  conditions: Record<string, string[]> | null
   sort_order: number
 }

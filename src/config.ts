@@ -87,6 +87,7 @@ export async function loadQuestionsFromSupabase(): Promise<QuestionnaireSet[]> {
         question_en,
         type,
         options,
+        conditions,
         sort_order
       )
     `)
@@ -107,6 +108,7 @@ export async function loadQuestionsFromSupabase(): Promise<QuestionnaireSet[]> {
         question_en: q.question_en,
         type: q.type,
         ...(q.options ? { options: q.options } : {}),
+        ...(q.conditions ? { conditions: q.conditions } : {}),
       } as Question)),
   }))
 }

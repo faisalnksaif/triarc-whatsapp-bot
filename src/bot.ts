@@ -121,7 +121,7 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
         setTitleEn: set.title_en,
         questions: set.questions,
         responses: state.responses,
-        currentIndex: state.currentIndex,
+        pendingIds: state.pendingIds,
         lang: state.lang,
         startedAt: new Date().toISOString(),
       }),
@@ -212,7 +212,7 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
           p.setTitleEn,
           config.timezone,
           true,  // treat as queued (no full greeting)
-          (state) => upsertActiveSession({ ...p, responses: state.responses, currentIndex: state.currentIndex, lang: state.lang }),
+          (state) => upsertActiveSession({ ...p, responses: state.responses, pendingIds: state.pendingIds, lang: state.lang }),
         )
 
         if (p.lang) langCache.set(p.jid, { lang: p.lang, date: todayLocal() })

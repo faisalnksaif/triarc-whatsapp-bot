@@ -2,9 +2,10 @@ import { useState } from 'react'
 import DailyOverview from './pages/DailyOverview'
 import RecipientReport from './pages/RecipientReport'
 import SetBreakdown from './pages/SetBreakdown'
+import Questions from './pages/Questions'
 import './App.css'
 
-type View = 'overview' | 'recipient' | 'breakdown'
+type View = 'overview' | 'recipient' | 'breakdown' | 'questions'
 
 export default function App() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
@@ -45,6 +46,12 @@ export default function App() {
         >
           Category Breakdown
         </button>
+        <button
+          className={view === 'questions' ? 'active' : ''}
+          onClick={() => setView('questions')}
+        >
+          Questions
+        </button>
       </nav>
 
       <main className="main">
@@ -63,6 +70,9 @@ export default function App() {
         )}
         {view === 'breakdown' && (
           <SetBreakdown date={date} />
+        )}
+        {view === 'questions' && (
+          <Questions />
         )}
       </main>
     </div>

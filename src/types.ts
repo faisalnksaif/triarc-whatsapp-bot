@@ -6,6 +6,7 @@ export interface Question {
   question_en: string
   type: QuestionType
   options?: string[]
+  conditions?: Record<string, string[]>  // answer value → ordered list of question ids to inject
 }
 
 export interface Answer {
@@ -48,7 +49,7 @@ export interface BotConfig {
 
 export interface ActiveSession {
   questions: Question[]
-  currentIndex: number
+  pendingIds: string[]       // ordered queue of question ids yet to ask
   responses: Answer[]
   startedAt: string
   awaitingReply: boolean
@@ -63,7 +64,7 @@ export interface PersistedSession {
   setTitleEn?: string
   questions: Question[]
   responses: Answer[]
-  currentIndex: number
+  pendingIds: string[]
   lang: 'en' | 'ml' | null
   startedAt: string
 }

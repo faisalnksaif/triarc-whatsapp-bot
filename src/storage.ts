@@ -27,7 +27,7 @@ export async function upsertActiveSession(s: PersistedSession): Promise<void> {
     set_title_en: s.setTitleEn ?? null,
     questions: s.questions,
     responses: s.responses,
-    current_index: s.currentIndex,
+    pending_ids: s.pendingIds,
     lang: s.lang ?? null,
     started_at: s.startedAt,
     updated_at: new Date().toISOString(),
@@ -53,7 +53,7 @@ export async function loadActiveSessions(): Promise<PersistedSession[]> {
     setTitleEn: r.set_title_en ?? undefined,
     questions: r.questions,
     responses: r.responses,
-    currentIndex: r.current_index,
+    pendingIds: r.pending_ids ?? [],
     lang: r.lang ?? null,
     startedAt: r.started_at,
   }))

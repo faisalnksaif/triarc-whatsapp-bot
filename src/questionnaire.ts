@@ -5,7 +5,7 @@ import type { Question, Answer, ActiveSession, SessionRecord, PersistedSession }
 type SendText = (text: string) => Promise<void>
 type SendChoices = (question: string, options: string[]) => Promise<void>
 type SaveSession = (record: SessionRecord) => Promise<void>
-type OnPersist = (state: Pick<PersistedSession, 'responses' | 'currentIndex' | 'lang'>) => void
+type OnPersist = (state: Pick<PersistedSession, 'responses' | 'pendingIds' | 'lang'>) => void
 
 const LANG_OPTIONS = ['English', 'Malayalam']
 
@@ -34,49 +34,66 @@ export class Questionnaire {
   }
 
   private isComplete(): boolean {
-    if (!this.session) return false
-    return this.session.currentIndex >= this.session.questions.length
+    return this.session?.pendingIds.length === 0
+  }
+
+  // Build the initial queue: questions not inside any branch (those get injected on demand)
+  private buildInitialPending(): string[] {
+    const branchedIds = new Set<string>()
+    for (const q of this.questions) {
+      if (q.conditions) {
+        for (const ids of Object.values(q.conditions)) {
+          for (const id of ids) branchedIds.add(id)
+        }
+      }
+    }
+    return this.questions.filter(q => !branchedIds.has(q.id)).map(q => q.id)
   }
 
   private buildIntroMessage(): string {
     const hour = Number(new Intl.DateTimeFormat('en', { hour: 'numeric', hour12: false, timeZone: this.timezone }).format(new Date()))
-
     const titleLine = [this.title_en, this.title].filter(Boolean).join(' • ')
     const count = this.questions.length
 
     if (this.isQueued) {
-      return [
-        `📋 *${titleLine}*`,
-        ``,
-        `_One more — ${count} question${count !== 1 ? 's' : ''}, won't take long_ ✅`,
-      ].join('\n')
+      return [`📋 *${titleLine}*`, ``, `_One more — ${count} question${count !== 1 ? 's' : ''}, won't take long_ ✅`].join('\n')
     }
 
     let greeting: string
-    if (hour < 12) {
-      greeting = `Good morning! ☀️\nLet's start the day fresh — hope it's a great one on site.`
-    } else if (hour < 17) {
-      greeting = `Good afternoon! 👋\nHope things are going well out there.`
-    } else if (hour < 21) {
-      greeting = `Good evening! 🌇\nAlmost there — just a quick check-in to wrap up the day.`
-    } else {
-      greeting = `Good night! 🌙\nWinding down for the day — just a few last questions before you rest.`
-    }
+    if (hour < 12)       greeting = `Good morning! ☀️\nLet's start the day fresh — hope it's a great one on site.`
+    else if (hour < 17)  greeting = `Good afternoon! 👋\nHope things are going well out there.`
+    else if (hour < 21)  greeting = `Good evening! 🌇\nAlmost there — just a quick check-in to wrap up the day.`
+    else                  greeting = `Good night! 🌙\nWinding down for the day — just a few last questions before you rest.`
 
-    return [
-      greeting,
-      ``,
-      `Here is your next check-in:`,
-      `📋 *${titleLine}*`,
-      ``,
-      `_${count} question${count !== 1 ? 's' : ''} — won't take long_ ✅`,
-    ].join('\n')
+    return [greeting, ``, `Here is your next check-in:`, `📋 *${titleLine}*`, ``, `_${count} question${count !== 1 ? 's' : ''} — won't take long_ ✅`].join('\n')
   }
 
-  async resume(persisted: Pick<PersistedSession, 'responses' | 'currentIndex' | 'lang' | 'startedAt'>): Promise<void> {
+  async start(): Promise<void> {
+    if (this.session) {
+      console.log('[questionnaire] Already active — ignoring start signal')
+      return
+    }
+
+    await this.sendText(this.buildIntroMessage())
+
+    const pendingIds = this.buildInitialPending()
+
+    if (this.initialLang) {
+      this.session = { questions: this.questions, pendingIds, responses: [], startedAt: new Date().toISOString(), awaitingReply: false, awaitingLanguage: false, lang: this.initialLang }
+      console.log(`[questionnaire] Session started — using cached language: ${this.initialLang}`)
+      await this.sendCurrentQuestion()
+    } else {
+      this.session = { questions: this.questions, pendingIds, responses: [], startedAt: new Date().toISOString(), awaitingReply: false, awaitingLanguage: true, lang: null }
+      console.log('[questionnaire] Session started — asking language preference')
+      await this.sendChoices('Please select your preferred language\nഭാഷ തിരഞ്ഞെടുക്കുക', LANG_OPTIONS)
+      this.session.awaitingReply = true
+    }
+  }
+
+  async resume(persisted: Pick<PersistedSession, 'responses' | 'pendingIds' | 'lang' | 'startedAt'>): Promise<void> {
     this.session = {
       questions: this.questions,
-      currentIndex: persisted.currentIndex,
+      pendingIds: persisted.pendingIds,
       responses: persisted.responses,
       startedAt: persisted.startedAt,
       awaitingReply: false,
@@ -84,7 +101,7 @@ export class Questionnaire {
       lang: persisted.lang,
     }
 
-    const answered = persisted.currentIndex
+    const answered = persisted.responses.length
     const total = this.questions.length
     const titleLine = [this.title_en, this.title].filter(Boolean).join(' • ')
 
@@ -105,51 +122,15 @@ export class Questionnaire {
     }
   }
 
-  async start(): Promise<void> {
-    if (this.session) {
-      console.log('[questionnaire] Already active — ignoring start signal')
-      return
-    }
-
-    await this.sendText(this.buildIntroMessage())
-
-    if (this.initialLang) {
-      this.session = {
-        questions: this.questions,
-        currentIndex: 0,
-        responses: [],
-        startedAt: new Date().toISOString(),
-        awaitingReply: false,
-        awaitingLanguage: false,
-        lang: this.initialLang,
-      }
-      console.log(`[questionnaire] Session started — using cached language: ${this.initialLang}`)
-      await this.sendCurrentQuestion()
-    } else {
-      this.session = {
-        questions: this.questions,
-        currentIndex: 0,
-        responses: [],
-        startedAt: new Date().toISOString(),
-        awaitingReply: false,
-        awaitingLanguage: true,
-        lang: null,
-      }
-      console.log('[questionnaire] Session started — asking language preference')
-      await this.sendChoices(
-        'Please select your preferred language\nഭാഷ തിരഞ്ഞെടുക്കുക',
-        LANG_OPTIONS,
-      )
-      this.session.awaitingReply = true
-    }
-  }
-
   private async sendCurrentQuestion(): Promise<void> {
     if (!this.session || this.isComplete()) return
 
-    const q = this.session.questions[this.session.currentIndex]
+    const currentId = this.session.pendingIds[0]
+    const q = this.session.questions.find(x => x.id === currentId)
+    if (!q) { await this.finish(); return }
+
     const total = this.session.questions.length
-    const num = this.session.currentIndex + 1
+    const num = this.session.responses.length + 1
     const text = this.session.lang === 'en' ? q.question_en : q.question
 
     if (q.type === 'poll') {
@@ -172,40 +153,51 @@ export class Questionnaire {
       this.session.awaitingReply = false
       console.log(`[questionnaire] Language set to: ${lang}`)
       this.onLanguageSelected?.(lang)
-      this.onPersist?.({ responses: this.session.responses, currentIndex: this.session.currentIndex, lang })
+      this.onPersist?.({ responses: this.session.responses, pendingIds: this.session.pendingIds, lang })
       await this.sendCurrentQuestion()
       return
     }
 
-    const q = this.session.questions[this.session.currentIndex]
+    const currentId = this.session.pendingIds[0]
+    const q = this.session.questions.find(x => x.id === currentId)
+    if (!q) { await this.finish(); return }
+
     const result = validate(text, q)
     if (!result.valid) {
       await this.sendText(`❌ ${result.errorMessage}`)
       return
     }
 
-    const answer = normalise(text, q)
-    await this.recordAnswer(q, answer, contactName)
+    await this.recordAnswer(q, normalise(text, q), contactName)
   }
 
   private async recordAnswer(q: Question, answer: string, contactName: string): Promise<void> {
     if (!this.session) return
 
-    const entry: Answer = {
+    this.session.responses.push({
       questionId: q.id,
       question: q.question,
       type: q.type,
       answer,
       answeredAt: new Date().toISOString(),
       contactName,
-    }
-
-    this.session.responses.push(entry)
-    this.session.currentIndex++
+    })
     this.session.awaitingReply = false
 
-    console.log(`[questionnaire] Q${this.session.currentIndex} answered: "${answer}"`)
-    this.onPersist?.({ responses: this.session.responses, currentIndex: this.session.currentIndex, lang: this.session.lang })
+    // Pop the answered question
+    const remaining = this.session.pendingIds.slice(1)
+
+    // Inject branch questions at the front if a condition matches
+    const branchIds = q.conditions?.[answer]
+    if (branchIds?.length) {
+      const withoutBranch = remaining.filter(id => !branchIds.includes(id))
+      this.session.pendingIds = [...branchIds, ...withoutBranch]
+    } else {
+      this.session.pendingIds = remaining
+    }
+
+    console.log(`[questionnaire] Answered "${answer}" → pending: [${this.session.pendingIds.join(', ')}]`)
+    this.onPersist?.({ responses: this.session.responses, pendingIds: this.session.pendingIds, lang: this.session.lang })
 
     if (this.isComplete()) {
       await this.finish()
@@ -228,7 +220,6 @@ export class Questionnaire {
 
     await this.saveSession(record)
     console.log(`[questionnaire] Session complete. Saved to Supabase.`)
-
     await this.sendText(`✅ *All done!* Thank you for completing the questionnaire.\n_Your responses have been recorded._`)
 
     this.session = null

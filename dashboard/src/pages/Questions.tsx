@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -194,6 +194,27 @@ export default function Questions() {
     }
   }
 
+  // Map question_id → which parent question + answer triggers it.
+  // Uses the live editForm.conditions for the question being edited so the
+  // main list updates instantly as you drag — no need to Save first.
+  const branchMeta = useMemo(() => {
+    const meta = new Map<string, { parentEn: string; answer: string }[]>()
+    for (const q of questions) {
+      const isActiveEdit = editingId === q.id && editForm.type === 'poll'
+      const conds = isActiveEdit ? editForm.conditions : q.conditions
+      if (!conds) continue
+      const parentEn = isActiveEdit ? (editForm.question_en || q.question_en) : q.question_en
+      for (const [answer, ids] of Object.entries(conds)) {
+        for (const id of ids) {
+          const existing = meta.get(id) ?? []
+          existing.push({ parentEn, answer })
+          meta.set(id, existing)
+        }
+      }
+    }
+    return meta
+  }, [questions, editingId, editForm.type, editForm.conditions, editForm.question_en])
+
   if (loadingSets) return <div className="loading">Loading sets…</div>
 
   return (
@@ -257,6 +278,7 @@ export default function Questions() {
                     setEditForm={setEditForm}
                     saving={saving}
                     allQuestions={questions}
+                    branchInfo={branchMeta.get(q.question_id)}
                     onEdit={() => startEdit(q)}
                     onDelete={() => deleteQuestion(q)}
                     onSaveEdit={() => saveEdit(q)}
@@ -294,13 +316,15 @@ interface RowProps {
   q: Question; idx: number; isEditing: boolean
   editForm: FormState; setEditForm: (f: FormState) => void
   saving: boolean; allQuestions: Question[]
+  branchInfo?: { parentEn: string; answer: string }[]
   onEdit: () => void; onDelete: () => void
   onSaveEdit: () => void; onCancelEdit: () => void
 }
 
-function SortableRow({ q, idx, isEditing, editForm, setEditForm, saving, allQuestions, onEdit, onDelete, onSaveEdit, onCancelEdit }: RowProps) {
+function SortableRow({ q, idx, isEditing, editForm, setEditForm, saving, allQuestions, branchInfo, onEdit, onDelete, onSaveEdit, onCancelEdit }: RowProps) {
+  const isBranched = !!branchInfo?.length
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: q.id })
-  const style: React.CSSProperties = {
+  const style: React.CSSProperties = isBranched ? {} : {
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 100 : undefined,
@@ -312,7 +336,11 @@ function SortableRow({ q, idx, isEditing, editForm, setEditForm, saving, allQues
     : 0
 
   return (
-    <div ref={setNodeRef} style={style} className={`qs-row${isEditing ? ' editing' : ''}${isDragging ? ' dragging' : ''}`}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`qs-row${isEditing ? ' editing' : ''}${isDragging && !isBranched ? ' dragging' : ''}${isBranched ? ' qs-row--branched' : ''}`}
+    >
       {isEditing ? (
         <div className="qs-edit-form">
           <QuestionForm form={editForm} onChange={setEditForm} label={`Q${idx + 1}`} allQuestions={allQuestions} editingQuestionId={q.question_id} />
@@ -323,8 +351,13 @@ function SortableRow({ q, idx, isEditing, editForm, setEditForm, saving, allQues
         </div>
       ) : (
         <>
-          <div className="qs-drag-handle" {...attributes} {...listeners} title="Drag to reorder">⠿</div>
-          <div className="qs-row-num">{idx + 1}</div>
+          {isBranched
+            ? <div className="qs-branch-indent">↳</div>
+            : <div className="qs-drag-handle" {...attributes} {...listeners} title="Drag to reorder">⠿</div>
+          }
+          <div className={`qs-row-num${isBranched ? ' qs-row-num--branch' : ''}`}>
+            {isBranched ? '?' : idx + 1}
+          </div>
           <div className="qs-row-body">
             <div className="qs-q-en">{q.question_en}</div>
             <div className="qs-q-ml">{q.question}</div>
@@ -333,7 +366,16 @@ function SortableRow({ q, idx, isEditing, editForm, setEditForm, saving, allQues
                 {q.options.map(o => <span key={o} className="qs-option">{o}</span>)}
               </div>
             )}
-            {branchCount > 0 && (
+            {isBranched && branchInfo && (
+              <div className="qs-branch-triggers">
+                {branchInfo.map((b, i) => (
+                  <span key={i} className="qs-branch-trigger-tag">
+                    ⚡ Only fires when "{b.parentEn}" → "{b.answer}"
+                  </span>
+                ))}
+              </div>
+            )}
+            {!isBranched && branchCount > 0 && (
               <div className="qs-conditions">
                 {Object.entries(q.conditions!).map(([opt, ids]) =>
                   ids.length > 0 && (

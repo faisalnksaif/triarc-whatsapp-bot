@@ -18,7 +18,10 @@ async function main() {
   for (const set of sets) {
     console.log(`[init]   "${set.title}" — ${set.questions.length} questions @ ${set.scheduleTime}`)
   }
-  console.log(`[init] Recipients (${config.recipients.length}): ${config.recipients.join(', ')}`)
+  console.log(`[init] Recipients (${config.recipients.length}):`)
+  for (const r of config.recipients) {
+    console.log(`[init]   ${r.name} — ${r.id}`)
+  }
   console.log(`[init] Timezone: ${config.timezone}`)
 
   await startBot(config, sets)

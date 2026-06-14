@@ -32,8 +32,13 @@ export interface QuestionnaireSet {
   questions: Question[]
 }
 
+export interface Recipient {
+  name: string
+  id: string
+}
+
 export interface BotConfig {
-  recipients: string[]
+  recipients: Recipient[]
   adminGroup?: string
   timezone: string
   questionsFile: string

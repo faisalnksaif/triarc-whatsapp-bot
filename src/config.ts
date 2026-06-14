@@ -62,9 +62,10 @@ export function loadQuestions(questionsFile: string): QuestionnaireSet[] {
  * - Full JID (contains "@"): used as-is  →  use this for groups, e.g. "120363xxxxxxxx@g.us"
  * - Phone number (e.g. "+2348012345678"): converted to individual JID
  */
-export function toJid(recipient: string): string {
-  if (recipient.includes('@')) return recipient
-  const digits = recipient.replace(/\D/g, '')
+export function toJid(recipient: string | { id: string }): string {
+  const raw = typeof recipient === 'string' ? recipient : recipient.id
+  if (raw.includes('@')) return raw
+  const digits = raw.replace(/\D/g, '')
   return `${digits}@c.us`
 }
 

@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'whatsapp-bot',
+      name: 'triarc-whatsapp-bot',
       script: './node_modules/.bin/tsx',
       args: 'src/index.ts',
       cwd: __dirname,

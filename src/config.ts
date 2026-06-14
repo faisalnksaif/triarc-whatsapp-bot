@@ -4,7 +4,9 @@ import { supabase } from './db.js'
 import type { BotConfig, Question, QuestionnaireSet } from './types.js'
 
 export function loadConfig(): BotConfig {
-  const path = resolve(process.cwd(), 'config.json')
+  const env = process.env.NODE_ENV === 'production' ? 'prod' : 'dev'
+  const path = resolve(process.cwd(), `config.${env}.json`)
+  console.log(`[config] env=${env}, loading ${path}`)
   const config: BotConfig = JSON.parse(readFileSync(path, 'utf-8'))
 
   const required: (keyof BotConfig)[] = ['timezone', 'questionsFile', 'responsesDir']

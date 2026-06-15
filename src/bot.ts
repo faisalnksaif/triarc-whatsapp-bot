@@ -177,7 +177,20 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
     }
 
     // Restore any sessions that were active when the bot last stopped
-    const persisted = await loadActiveSessions()
+    const allPersisted = await loadActiveSessions()
+    const today = todayLocal()
+    const stale = allPersisted.filter(p => {
+      const startedDate = new Date(p.startedAt).toLocaleDateString('en-CA', { timeZone: config.timezone })
+      return startedDate !== today
+    })
+    for (const p of stale) {
+      console.log(`[bot] Discarding stale session for ${p.jid} (started ${p.startedAt})`)
+      await clearActiveSession(p.jid)
+    }
+    const persisted = allPersisted.filter(p => {
+      const startedDate = new Date(p.startedAt).toLocaleDateString('en-CA', { timeZone: config.timezone })
+      return startedDate === today
+    })
     if (persisted.length > 0) {
       console.log(`[bot] Restoring ${persisted.length} interrupted session(s)...`)
       for (const p of persisted) {

@@ -5,7 +5,7 @@ import { resolve } from 'path'
 import { toJid } from './config.js'
 import { scheduleQuestionnaire } from './scheduler.js'
 import { Questionnaire } from './questionnaire.js'
-import { saveSession, upsertActiveSession, clearActiveSession, loadActiveSessions } from './storage.js'
+import { saveSession, upsertActiveSession, clearActiveSession, loadActiveSessions, saveLangPref, loadLangPrefs } from './storage.js'
 import { generateReport } from './reporter.js'
 import { parseReportIntent } from './ai.js'
 import type { BotConfig, QuestionnaireSet } from './types.js'
@@ -109,7 +109,7 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
         processQueue(targetJid)
       },
       getCachedLang(targetJid),
-      (lang) => langCache.set(targetJid, { lang, date: todayLocal() }),
+      (lang) => { const d = todayLocal(); langCache.set(targetJid, { lang, date: d }); saveLangPref(targetJid, lang, d) },
       set.title,
       set.title_en,
       config.timezone,
@@ -176,9 +176,14 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       cronRegistered = true
     }
 
+    // Warm up in-memory lang cache from file so restarts don't re-ask language today
+    const today = todayLocal()
+    for (const [jid, entry] of Object.entries(loadLangPrefs())) {
+      if (entry.date === today) langCache.set(jid, entry)
+    }
+
     // Restore any sessions that were active when the bot last stopped
     const allPersisted = await loadActiveSessions()
-    const today = todayLocal()
     const stale = allPersisted.filter(p => {
       const startedDate = new Date(p.startedAt).toLocaleDateString('en-CA', { timeZone: config.timezone })
       return startedDate !== today

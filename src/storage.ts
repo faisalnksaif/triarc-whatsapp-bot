@@ -1,5 +1,36 @@
 import { supabase } from './db.js'
+import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { resolve } from 'path'
 import type { SessionRecord, PersistedSession } from './types.js'
+
+// ── Language preference cache (persisted across restarts) ───────────────────
+
+type LangPrefs = Record<string, { lang: 'en' | 'ml'; date: string }>
+
+const LANG_PREFS_PATH = resolve(process.cwd(), 'lang-prefs.json')
+
+function readLangPrefs(): LangPrefs {
+  try {
+    if (!existsSync(LANG_PREFS_PATH)) return {}
+    return JSON.parse(readFileSync(LANG_PREFS_PATH, 'utf8')) as LangPrefs
+  } catch {
+    return {}
+  }
+}
+
+export function saveLangPref(jid: string, lang: 'en' | 'ml', date: string): void {
+  const prefs = readLangPrefs()
+  prefs[jid] = { lang, date }
+  try {
+    writeFileSync(LANG_PREFS_PATH, JSON.stringify(prefs, null, 2))
+  } catch (err) {
+    console.error('[storage] Failed to save lang pref:', err)
+  }
+}
+
+export function loadLangPrefs(): LangPrefs {
+  return readLangPrefs()
+}
 
 export function generateSessionId(): string {
   return `session_${new Date().toISOString().replace(/[:.]/g, '-')}`

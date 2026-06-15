@@ -24,6 +24,8 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
   const langCache = new Map<string, { lang: 'en' | 'ml'; date: string }>()
   // tracks whether the warm greeting has been sent to this JID today
   const greetedCache = new Map<string, string>()
+  // messages to delete when a session completes — keyed by JID
+  const sessionMessages = new Map<string, any[]>()
   // Timestamp until which fromMe messages in the admin group should be ignored.
   // Extended on every bot send to prevent feedback loops (message_create fires before sendMessage resolves).
   let adminSendBlockedUntil = 0
@@ -81,8 +83,12 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       }
     }
 
+    sessionMessages.set(targetJid, [])
+    const trackSent = (msg: any) => sessionMessages.get(targetJid)?.push(msg)
+
     const sendText = async (text: string): Promise<void> => {
-      await client.sendMessage(targetJid, text)
+      const msg = await client.sendMessage(targetJid, text)
+      trackSent(msg)
     }
 
     const sendChoices = async (question: string, options: string[]): Promise<void> => {
@@ -90,10 +96,19 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
         const poll = new Poll(question, options, { allowMultipleAnswers: false })
         const sent = await client.sendMessage(targetJid, poll)
         pendingPolls.set(sent.id._serialized, targetJid)
+        trackSent(sent)
       } catch (err) {
         console.error('[bot] Poll send failed, falling back to text:', err)
         const optionList = options.map((o, i) => `${i + 1}. ${o}`).join('\n')
         await sendText(`${question}\n\n${optionList}\n\n_Reply with a number_`)
+      }
+    }
+
+    const deleteSessionMessages = async () => {
+      const msgs = sessionMessages.get(targetJid) ?? []
+      sessionMessages.delete(targetJid)
+      for (const msg of msgs) {
+        await msg.delete(true).catch(() => {})
       }
     }
 
@@ -106,6 +121,7 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       sendChoices,
       () => {
         activeSessions.delete(targetJid)
+        deleteSessionMessages().catch(err => console.error('[bot] Failed to delete session messages:', err))
         processQueue(targetJid)
       },
       getCachedLang(targetJid),
@@ -364,6 +380,7 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       // non-fatal
     }
     console.log(`[bot] Reply from ${contactName}: "${text.trim()}"`)
+    sessionMessages.get(fromJid)?.push(msg)
     await session.handleTextReply(text, contactName)
   }
 

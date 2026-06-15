@@ -333,6 +333,40 @@ body {
 .qs-set-ml   { font-size: 0.78rem; color: #888; }
 .qs-set-time { font-size: 0.75rem; color: #4f46e5; margin-top: 2px; }
 
+.qs-new-set-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-top: 1px dashed #d0d0e8;
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #4f46e5;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.qs-new-set-btn:hover { background: #f5f3ff; }
+
+.qs-new-set-form {
+  padding: 12px 14px;
+  border-top: 1px dashed #d0d0e8;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.qs-new-set-input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #d4d4e8;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  box-sizing: border-box;
+}
+.qs-new-set-input:focus { outline: none; border-color: #4f46e5; }
+.qs-new-set-actions { display: flex; gap: 8px; }
+
 .qs-panel {
   background: #fff;
   border: 1px solid #e0e4ea;

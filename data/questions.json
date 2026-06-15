@@ -48,55 +48,55 @@
         "id": "q6",
         "question": "ഇന്ന് ആകെ എത്ര തൊഴിലാളികൾ ഉണ്ടായിരുന്നു?",
         "question_en": "How many total workers were present today?",
-        "type": "number"
+        "type": "text"
       },
       {
         "id": "q7",
         "question": "Skilled തൊഴിലാളികൾ എത്ര പേർ?",
         "question_en": "How many skilled workers?",
-        "type": "number"
+        "type": "text"
       },
       {
         "id": "q8",
         "question": "Unskilled തൊഴിലാളികൾ എത്ര പേർ?",
         "question_en": "How many unskilled workers?",
-        "type": "number"
+        "type": "text"
       },
       {
         "id": "q9",
         "question": "Mason എത്ര പേർ?",
         "question_en": "How many masons?",
-        "type": "number"
+        "type": "text"
       },
       {
         "id": "q10",
         "question": "Carpenter എത്ര പേർ?",
         "question_en": "How many carpenters?",
-        "type": "number"
+        "type": "text"
       },
       {
         "id": "q11",
         "question": "Steel Fixer എത്ര പേർ?",
         "question_en": "How many steel fixers?",
-        "type": "number"
+        "type": "text"
       },
       {
         "id": "q12",
         "question": "Electrician എത്ര പേർ?",
         "question_en": "How many electricians?",
-        "type": "number"
+        "type": "text"
       },
       {
         "id": "q13",
         "question": "Plumber എത്ര പേർ?",
         "question_en": "How many plumbers?",
-        "type": "number"
+        "type": "text"
       },
       {
         "id": "q14",
         "question": "Painter എത്ര പേർ?",
         "question_en": "How many painters?",
-        "type": "number"
+        "type": "text"
       },
       {
         "id": "q15",
@@ -321,31 +321,31 @@
         "id": "q45",
         "question": "Cement Stock എത്ര ബാക്കി?",
         "question_en": "How much cement stock is remaining?",
-        "type": "number"
+        "type": "text"
       },
       {
         "id": "q46",
         "question": "Steel Stock എത്ര ബാക്കി?",
         "question_en": "How much steel stock is remaining?",
-        "type": "number"
+        "type": "text"
       },
       {
         "id": "q47",
         "question": "Sand Stock എത്ര ബാക്കി?",
         "question_en": "How much sand stock is remaining?",
-        "type": "number"
+        "type": "text"
       },
       {
         "id": "q48",
         "question": "Aggregate Stock എത്ര ബാക്കി?",
         "question_en": "How much aggregate stock is remaining?",
-        "type": "number"
+        "type": "text"
       },
       {
         "id": "q49",
         "question": "Brick/Block Stock എത്ര ബാക്കി?",
         "question_en": "How much brick/block stock is remaining?",
-        "type": "number"
+        "type": "text"
       },
       {
         "id": "q50",

@@ -52,6 +52,9 @@ export default function Questions() {
   const [error, setError] = useState<string | null>(null)
   const [editingTime, setEditingTime] = useState(false)
   const [timeForm, setTimeForm] = useState('')
+  const [creatingSet, setCreatingSet] = useState(false)
+  const [newSetForm, setNewSetForm] = useState({ title: '', title_en: '', schedule_time: '' })
+  const [creatingSetSaving, setCreatingSetSaving] = useState(false)
 
   const listSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -158,6 +161,24 @@ export default function Questions() {
     setSaving(false)
   }
 
+  async function createSet() {
+    if (!newSetForm.title_en.trim() || !newSetForm.schedule_time) return
+    setCreatingSetSaving(true)
+    setError(null)
+    const { data, error } = await supabase
+      .from('questionnaire_sets')
+      .insert({ title: newSetForm.title.trim(), title_en: newSetForm.title_en.trim(), schedule_time: newSetForm.schedule_time })
+      .select()
+      .single()
+    if (error) { setError(error.message); setCreatingSetSaving(false); return }
+    const created = data as QuestionnaireSet
+    setSets(prev => [...prev, created].sort((a, b) => a.schedule_time.localeCompare(b.schedule_time)))
+    setSelectedSet(created)
+    setCreatingSet(false)
+    setNewSetForm({ title: '', title_en: '', schedule_time: '' })
+    setCreatingSetSaving(false)
+  }
+
   async function saveTime() {
     if (!selectedSet || !timeForm) return
     setSaving(true)
@@ -225,13 +246,44 @@ export default function Questions() {
           <button
             key={s.id}
             className={`qs-set-btn${selectedSet?.id === s.id ? ' active' : ''}`}
-            onClick={() => setSelectedSet(s)}
+            onClick={() => { setSelectedSet(s); setCreatingSet(false) }}
           >
             <span className="qs-set-name">{s.title_en}</span>
             <span className="qs-set-ml">{s.title}</span>
             <span className="qs-set-time">{s.schedule_time}</span>
           </button>
         ))}
+
+        {creatingSet ? (
+          <div className="qs-new-set-form">
+            <input
+              className="qs-new-set-input"
+              placeholder="Title (English) *"
+              value={newSetForm.title_en}
+              onChange={e => setNewSetForm(f => ({ ...f, title_en: e.target.value }))}
+            />
+            <input
+              className="qs-new-set-input"
+              placeholder="Title (Malayalam)"
+              value={newSetForm.title}
+              onChange={e => setNewSetForm(f => ({ ...f, title: e.target.value }))}
+            />
+            <input
+              type="time"
+              className="qs-new-set-input"
+              value={newSetForm.schedule_time}
+              onChange={e => setNewSetForm(f => ({ ...f, schedule_time: e.target.value }))}
+            />
+            <div className="qs-new-set-actions">
+              <button className="btn-save" onClick={createSet} disabled={creatingSetSaving || !newSetForm.title_en.trim() || !newSetForm.schedule_time}>
+                {creatingSetSaving ? 'Creating…' : 'Create'}
+              </button>
+              <button className="btn-cancel" onClick={() => setCreatingSet(false)}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <button className="qs-new-set-btn" onClick={() => setCreatingSet(true)}>+ New Section</button>
+        )}
       </aside>
 
       <section className="qs-panel">

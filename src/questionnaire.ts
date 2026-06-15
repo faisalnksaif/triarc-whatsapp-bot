@@ -9,8 +9,11 @@ type OnPersist = (state: Pick<PersistedSession, 'responses' | 'pendingIds' | 'la
 
 const LANG_OPTIONS = ['English', 'Malayalam']
 
+const REMINDER_DELAY_MS = 30 * 60 * 1000 // 30 minutes
+
 export class Questionnaire {
   private session: ActiveSession | null = null
+  private reminderTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(
     private readonly questions: Question[],
@@ -31,6 +34,27 @@ export class Questionnaire {
 
   isActive(): boolean {
     return this.session !== null && !this.isComplete()
+  }
+
+  private scheduleReminder(label: string): void {
+    this.cancelReminder()
+    this.reminderTimer = setTimeout(async () => {
+      this.reminderTimer = null
+      if (!this.session?.awaitingReply) return
+      const lang = this.session.lang
+      const msg = lang === 'ml'
+        ? '⏰ ഒരു ഓർമ്മപ്പെടുത്തൽ — ദയവായി ഉത്തരം നൽകുക. 😊'
+        : '⏰ Just a gentle reminder — we\'re still waiting for your reply. 😊'
+      console.log(`[questionnaire] Sending reminder for: ${label}`)
+      await this.sendText(msg).catch(err => console.error('[questionnaire] Reminder send failed:', err))
+    }, REMINDER_DELAY_MS)
+  }
+
+  private cancelReminder(): void {
+    if (this.reminderTimer) {
+      clearTimeout(this.reminderTimer)
+      this.reminderTimer = null
+    }
   }
 
   private isComplete(): boolean {
@@ -87,6 +111,7 @@ export class Questionnaire {
       console.log('[questionnaire] Session started — asking language preference')
       await this.sendChoices('Please select your preferred language\nഭാഷ തിരഞ്ഞെടുക്കുക', LANG_OPTIONS)
       this.session.awaitingReply = true
+      this.scheduleReminder('language')
     }
   }
 
@@ -117,6 +142,7 @@ export class Questionnaire {
     if (persisted.lang === null) {
       await this.sendChoices('Please select your preferred language\nഭാഷ തിരഞ്ഞെടുക്കുക', LANG_OPTIONS)
       this.session.awaitingReply = true
+      this.scheduleReminder('language')
     } else {
       await this.sendCurrentQuestion()
     }
@@ -141,10 +167,12 @@ export class Questionnaire {
     }
 
     this.session.awaitingReply = true
+    this.scheduleReminder(currentId)
   }
 
   async handleTextReply(text: string, contactName = ''): Promise<void> {
     if (!this.session?.awaitingReply) return
+    this.cancelReminder()
 
     if (this.session.awaitingLanguage) {
       const lang: 'en' | 'ml' = text === 'English' ? 'en' : 'ml'
@@ -208,6 +236,7 @@ export class Questionnaire {
 
   private async finish(): Promise<void> {
     if (!this.session) return
+    this.cancelReminder()
 
     const record: SessionRecord = {
       sessionId: generateSessionId(),

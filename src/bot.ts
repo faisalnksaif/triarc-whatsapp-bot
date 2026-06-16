@@ -449,11 +449,17 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       const setIds = matched.map(s => s.id)
       await saveRecipientSchedule(targetJid, setIds, effectiveFrom)
       recipientSchedules.set(targetJid, { jid: targetJid, setIds, effectiveFrom })
+      const msgsToDelete = state.sentMsgs.slice()
       pendingSetConfig.delete(targetJid)
       const names = matched.map(s => `• ${s.title_en}`).join('\n')
       await client.sendMessage(targetJid, `✅ Schedule saved! From tomorrow (${effectiveFrom}) this group will receive:\n${names}`)
-      for (const m of state.sentMsgs) {
-        await m.delete(true).catch(() => {})
+      // Small delay so WhatsApp registers the messages before deletion
+      await new Promise(r => setTimeout(r, 1500))
+      console.log(`[bot] !finish — deleting ${msgsToDelete.length} set-config message(s)`)
+      for (const m of msgsToDelete) {
+        await m.delete(true).catch((err: any) => {
+          console.error(`[bot] Failed to delete set-config msg ${m.id?._serialized}:`, err?.message ?? err)
+        })
       }
       return
     }

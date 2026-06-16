@@ -43,6 +43,7 @@ export interface Recipient {
 export interface BotConfig {
   recipients: Recipient[]
   adminGroup?: string
+  admins?: string[]   // phone numbers or JIDs allowed to use !q / !n / !finish
   timezone: string
   questionsFile: string
   responsesDir: string

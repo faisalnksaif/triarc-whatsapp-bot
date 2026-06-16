@@ -368,12 +368,10 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
     const text: string = msg.body ?? ''
     const fromJid: string = msg.from
 
-    // Always log raw fields in dev so we can diagnose JID issues
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[bot:raw] from=${msg.from} to=${msg.to} fromMe=${msg.fromMe} body="${text.slice(0, 80)}"`)
-    }
+    // Always log every message so we can diagnose command delivery in production
+    console.log(`[bot:msg] from=${msg.from} to=${msg.to} fromMe=${msg.fromMe} isAdmin=${isAdmin()} body="${text.slice(0, 80)}"`)
 
-    // Helper: resolve canonical group JID from a fromMe message
+    // Helper: resolve canonical group JID (works for both fromMe and admin senders)
     async function resolveTargetJid(): Promise<string | null> {
       try {
         const chat = await msg.getChat()
@@ -381,11 +379,23 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       } catch { return null }
     }
 
-    // !q — start multi-batch poll flow (fromMe only)
-    if (text.trim() === '!q' && msg.fromMe) {
+    // Helper: is the sender a configured admin?
+    function isAdmin(): boolean {
+      const adminJids = (config.admins ?? []).map(toJid)
+      const sender = msg.fromMe ? null : (msg.author ?? msg.from)
+      if (!sender) return false
+      const senderNum = sender.split('@')[0]
+      return adminJids.some(j => j.split('@')[0] === senderNum)
+    }
+
+    const isAuthorized = msg.fromMe || isAdmin()
+
+    // !q — start multi-batch poll flow (owner or admin only)
+    if (text.trim() === '!q' && isAuthorized) {
+      console.log(`[bot] !q received — fromMe=${msg.fromMe} from=${msg.from} author=${msg.author}`)
       const targetJid = await resolveTargetJid()
       if (!targetJid) { console.error('[bot] !q: could not resolve chat JID'); return }
-      console.log(`[bot] !q received — configuring sets for ${targetJid}`)
+      console.log(`[bot] !q — targeting JID ${targetJid}, sets available: ${sets.length}`)
       if (sets.length === 0) {
         await client.sendMessage(targetJid, '⚠️ No questionnaire sets available.')
         return
@@ -397,8 +407,9 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       return
     }
 
-    // !n — send next batch in the poll flow (fromMe only)
-    if (text.trim() === '!n' && msg.fromMe) {
+    // !n — send next batch in the poll flow (owner or admin only)
+    if (text.trim() === '!n' && isAuthorized) {
+      console.log(`[bot] !n received — fromMe=${msg.fromMe} from=${msg.from}`)
       const targetJid = await resolveTargetJid()
       if (!targetJid) return
       const state = pendingSetConfig.get(targetJid)
@@ -414,8 +425,8 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       return
     }
 
-    // !finish — collect votes from all batches and save schedule (fromMe only)
-    if (text.trim() === '!finish' && msg.fromMe) {
+    // !finish — collect votes from all batches and save schedule (owner or admin only)
+    if (text.trim() === '!finish' && isAuthorized) {
       const targetJid = await resolveTargetJid()
       if (!targetJid) return
       const state = pendingSetConfig.get(targetJid)

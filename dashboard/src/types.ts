@@ -22,6 +22,7 @@ export interface QuestionnaireSet {
   title: string
   title_en: string
   schedule_time: string
+  sort_order: number
 }
 
 export interface Question {

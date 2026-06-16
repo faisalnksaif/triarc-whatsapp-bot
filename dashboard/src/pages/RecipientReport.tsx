@@ -58,9 +58,9 @@ export default function RecipientReport({ recipient, recipientName, date }: Prop
         }
       }
 
-      // sort groups by set schedule_time
+      // sort groups by set sort_order
       const sorted = [...groupMap.values()].sort((a, b) =>
-        a.set.schedule_time.localeCompare(b.set.schedule_time)
+        a.set.sort_order - b.set.sort_order
       )
       setGroups(sorted)
       setLoading(false)

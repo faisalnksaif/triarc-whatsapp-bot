@@ -78,6 +78,7 @@ export async function loadQuestionsFromSupabase(): Promise<QuestionnaireSet[]> {
   const { data: sets, error } = await supabase
     .from('questionnaire_sets')
     .select(`
+      id,
       title,
       title_en,
       schedule_time,
@@ -91,12 +92,14 @@ export async function loadQuestionsFromSupabase(): Promise<QuestionnaireSet[]> {
         sort_order
       )
     `)
+    .order('sort_order', { ascending: true })
     .order('schedule_time', { ascending: true })
 
   if (error) throw new Error(`Failed to load questions from Supabase: ${error.message}`)
   if (!sets || sets.length === 0) throw new Error('No questionnaire sets found in Supabase')
 
   return sets.map((s: any) => ({
+    id: s.id,
     title: s.title,
     title_en: s.title_en,
     scheduleTime: s.schedule_time,

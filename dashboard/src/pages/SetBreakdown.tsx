@@ -17,6 +17,7 @@ export default function SetBreakdown({ date }: Props) {
     supabase
       .from('questionnaire_sets')
       .select('*')
+      .order('sort_order', { ascending: true })
       .order('schedule_time', { ascending: true })
       .then(({ data }) => {
         if (data) setSets(data as QuestionnaireSet[])

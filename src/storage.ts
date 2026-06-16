@@ -71,6 +71,36 @@ export async function clearActiveSession(jid: string): Promise<void> {
   if (error) console.error('[storage] Failed to clear active session:', error.message)
 }
 
+// ── Recipient schedules ─────────────────────────────────────────────────────
+
+export interface RecipientSchedule {
+  jid: string
+  setIds: string[]
+  effectiveFrom: string  // 'YYYY-MM-DD'
+}
+
+export async function saveRecipientSchedule(jid: string, setIds: string[], effectiveFrom: string): Promise<void> {
+  const { error } = await supabase.from('recipient_schedules').upsert(
+    { jid, set_ids: setIds, effective_from: effectiveFrom, updated_at: new Date().toISOString() },
+    { onConflict: 'jid' }
+  )
+  if (error) console.error('[storage] Failed to save recipient schedule:', error.message)
+  else console.log(`[storage] Recipient schedule saved for ${jid}: ${setIds.length} sets from ${effectiveFrom}`)
+}
+
+export async function loadRecipientSchedules(): Promise<RecipientSchedule[]> {
+  const { data, error } = await supabase.from('recipient_schedules').select('*')
+  if (error) {
+    console.error('[storage] Failed to load recipient schedules:', error.message)
+    return []
+  }
+  return (data ?? []).map((r: any) => ({
+    jid: r.jid,
+    setIds: r.set_ids ?? [],
+    effectiveFrom: r.effective_from,
+  }))
+}
+
 export async function loadActiveSessions(): Promise<PersistedSession[]> {
   const { data, error } = await supabase.from('active_sessions').select('*')
   if (error) {

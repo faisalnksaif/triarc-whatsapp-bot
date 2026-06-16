@@ -62,6 +62,7 @@ export default function Questions() {
     supabase
       .from('questionnaire_sets')
       .select('*')
+      .order('sort_order', { ascending: true })
       .order('schedule_time', { ascending: true })
       .then(({ data, error }) => {
         if (error) setError(error.message)
@@ -172,7 +173,7 @@ export default function Questions() {
       .single()
     if (error) { setError(error.message); setCreatingSetSaving(false); return }
     const created = data as QuestionnaireSet
-    setSets(prev => [...prev, created].sort((a, b) => a.schedule_time.localeCompare(b.schedule_time)))
+    setSets(prev => [...prev, created].sort((a, b) => a.sort_order - b.sort_order))
     setSelectedSet(created)
     setCreatingSet(false)
     setNewSetForm({ title: '', title_en: '', schedule_time: '' })

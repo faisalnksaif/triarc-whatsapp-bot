@@ -28,6 +28,7 @@ export interface SessionRecord {
 }
 
 export interface QuestionnaireSet {
+  id: string
   title: string
   title_en: string
   scheduleTime: string

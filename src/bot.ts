@@ -5,10 +5,19 @@ import { resolve } from 'path'
 import { toJid } from './config.js'
 import { scheduleQuestionnaire } from './scheduler.js'
 import { Questionnaire } from './questionnaire.js'
-import { saveSession, upsertActiveSession, clearActiveSession, loadActiveSessions, saveLangPref, loadLangPrefs } from './storage.js'
+import { saveSession, upsertActiveSession, clearActiveSession, loadActiveSessions, saveLangPref, loadLangPrefs, saveRecipientSchedule, loadRecipientSchedules } from './storage.js'
+import type { RecipientSchedule } from './storage.js'
 import { generateReport } from './reporter.js'
 import { parseReportIntent } from './ai.js'
 import type { BotConfig, QuestionnaireSet } from './types.js'
+
+interface SetConfigState {
+  allSets: QuestionnaireSet[]
+  nextBatch: number      // index of the next batch to send (0-based)
+  totalBatches: number
+  pollIds: string[]      // sent poll message IDs, in order
+  selections: Map<string, string[]>  // pollId → selected set titles
+}
 
 export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Promise<void> {
   const scheduledJids = config.recipients.map(toJid)
@@ -26,12 +35,22 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
   const greetedCache = new Map<string, string>()
   // messages to delete when a session completes — keyed by JID
   const sessionMessages = new Map<string, any[]>()
+  // per-JID schedule override: which set IDs to send and from when
+  const recipientSchedules = new Map<string, RecipientSchedule>()
+  // !q multi-batch poll flow state per JID
+  const pendingSetConfig = new Map<string, SetConfigState>()
   // Timestamp until which fromMe messages in the admin group should be ignored.
   // Extended on every bot send to prevent feedback loops (message_create fires before sendMessage resolves).
   let adminSendBlockedUntil = 0
 
   function todayLocal(): string {
     return new Date().toLocaleDateString('en-CA', { timeZone: config.timezone })
+  }
+
+  function tomorrowLocal(): string {
+    const d = new Date()
+    d.setDate(d.getDate() + 1)
+    return d.toLocaleDateString('en-CA', { timeZone: config.timezone })
   }
 
   function getCachedLang(jid: string): 'en' | 'ml' | undefined {
@@ -180,7 +199,13 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       for (const [time, timeSets] of setsByTime) {
         scheduleQuestionnaire(time, config.timezone, async () => {
           for (const jid of scheduledJids) {
-            const [first, ...rest] = timeSets
+            const schedule = recipientSchedules.get(jid)
+            const now = todayLocal()
+            const setsForJid = (schedule && schedule.effectiveFrom <= now)
+              ? timeSets.filter(s => schedule.setIds.includes(s.id))
+              : timeSets
+            if (setsForJid.length === 0) continue
+            const [first, ...rest] = setsForJid
             if (rest.length > 0) {
               const queue = sessionQueues.get(jid) ?? []
               sessionQueues.set(jid, [...queue, ...rest])
@@ -191,6 +216,12 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       }
       cronRegistered = true
     }
+
+    // Load per-recipient schedule overrides
+    for (const s of await loadRecipientSchedules()) {
+      recipientSchedules.set(s.jid, s)
+    }
+    console.log(`[bot] Loaded ${recipientSchedules.size} recipient schedule override(s)`)
 
     // Warm up in-memory lang cache from file so restarts don't re-ask language today
     const today = todayLocal()
@@ -279,6 +310,17 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client.on('vote_update', async (vote: any) => {
     const pollId: string = vote.parentMessage?.id?._serialized ?? ''
+
+    // Set-config polls (from !q batches) — accumulate selections per poll
+    for (const [jid, state] of pendingSetConfig) {
+      if (state.pollIds.includes(pollId)) {
+        const selected: string[] = (vote.selectedOptions ?? []).map((o: any) => o.name as string)
+        state.selections.set(pollId, selected)
+        console.log(`[bot] Set-config vote for ${jid} poll ${pollId}: [${selected.join(', ')}]`)
+        return
+      }
+    }
+
     const targetJid = pendingPolls.get(pollId)
     if (!targetJid) return
 
@@ -301,6 +343,24 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
     if (session) await session.handleTextReply(selected, contactName)
   })
 
+  // ── set-config batch helper ─────────────────────────────────────────────────
+
+  async function sendSetBatch(targetJid: string, state: SetConfigState): Promise<void> {
+    const batchNum = state.nextBatch
+    const start = batchNum * 10
+    const batch = state.allSets.slice(start, start + 10)
+    const label = `${batchNum + 1}/${state.totalBatches}`
+    const poll = new Poll(`Select question sets (${label}):`, batch.map(s => s.title_en), { allowMultipleAnswers: true })
+    const sent = await client.sendMessage(targetJid, poll)
+    state.pollIds.push(sent.id._serialized)
+    state.nextBatch++
+    if (state.nextBatch < state.totalBatches) {
+      await client.sendMessage(targetJid, `_Batch ${label} sent. Type *!n* for the next batch, or *!finish* when done selecting._`)
+    } else {
+      await client.sendMessage(targetJid, `_Batch ${label} sent (last batch). Type *!finish* to save your selection._`)
+    }
+  }
+
   // ── incoming messages ───────────────────────────────────────────────────────
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -308,7 +368,85 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
     const text: string = msg.body ?? ''
     const fromJid: string = msg.from
 
-    console.log(`[bot:debug] msg from=${fromJid} fromMe=${msg.fromMe} body="${text.slice(0, 60)}"`)
+    // Always log raw fields in dev so we can diagnose JID issues
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[bot:raw] from=${msg.from} to=${msg.to} fromMe=${msg.fromMe} body="${text.slice(0, 80)}"`)
+    }
+
+    // Helper: resolve canonical group JID from a fromMe message
+    async function resolveTargetJid(): Promise<string | null> {
+      try {
+        const chat = await msg.getChat()
+        return chat.id._serialized
+      } catch { return null }
+    }
+
+    // !q — start multi-batch poll flow (fromMe only)
+    if (text.trim() === '!q' && msg.fromMe) {
+      const targetJid = await resolveTargetJid()
+      if (!targetJid) { console.error('[bot] !q: could not resolve chat JID'); return }
+      console.log(`[bot] !q received — configuring sets for ${targetJid}`)
+      if (sets.length === 0) {
+        await client.sendMessage(targetJid, '⚠️ No questionnaire sets available.')
+        return
+      }
+      const totalBatches = Math.ceil(sets.length / 10)
+      const state: SetConfigState = { allSets: sets, nextBatch: 0, totalBatches, pollIds: [], selections: new Map() }
+      pendingSetConfig.set(targetJid, state)
+      await sendSetBatch(targetJid, state)
+      return
+    }
+
+    // !n — send next batch in the poll flow (fromMe only)
+    if (text.trim() === '!n' && msg.fromMe) {
+      const targetJid = await resolveTargetJid()
+      if (!targetJid) return
+      const state = pendingSetConfig.get(targetJid)
+      if (!state) {
+        await client.sendMessage(targetJid, '⚠️ No active set selection. Type *!q* to start.')
+        return
+      }
+      if (state.nextBatch >= state.totalBatches) {
+        await client.sendMessage(targetJid, `_All ${state.totalBatches} batch(es) sent. Type *!finish* to save._`)
+        return
+      }
+      await sendSetBatch(targetJid, state)
+      return
+    }
+
+    // !finish — collect votes from all batches and save schedule (fromMe only)
+    if (text.trim() === '!finish' && msg.fromMe) {
+      const targetJid = await resolveTargetJid()
+      if (!targetJid) return
+      const state = pendingSetConfig.get(targetJid)
+      if (!state) return
+      const selectedTitles = new Set<string>()
+      for (const titles of state.selections.values()) {
+        for (const t of titles) selectedTitles.add(t)
+      }
+      const matched = state.allSets.filter(s => selectedTitles.has(s.title_en))
+      if (matched.length === 0) {
+        await client.sendMessage(targetJid, '⚠️ No sets selected. Pick from the polls first, then type *!finish*.')
+        return
+      }
+      const effectiveFrom = tomorrowLocal()
+      const setIds = matched.map(s => s.id)
+      await saveRecipientSchedule(targetJid, setIds, effectiveFrom)
+      recipientSchedules.set(targetJid, { jid: targetJid, setIds, effectiveFrom })
+      pendingSetConfig.delete(targetJid)
+      const names = matched.map(s => `• ${s.title_en}`).join('\n')
+      await client.sendMessage(targetJid, `✅ Schedule saved! From tomorrow (${effectiveFrom}) this group will receive:\n${names}`)
+      return
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+      let chatLabel = fromJid
+      try {
+        const chat = await msg.getChat()
+        chatLabel = `${chat.name} (${chat.id._serialized})`
+      } catch { /* non-fatal */ }
+      console.log(`[bot:msg] from=${chatLabel} fromMe=${msg.fromMe} body="${text.slice(0, 80)}"`)
+    }
 
     // !start in any chat → start first questionnaire set targeting that chat
     if (text.trim() === '!start') {
@@ -320,7 +458,9 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
     // !report [YYYY-MM-DD] in admin group → send WhatsApp report
     const adminGroup = config.adminGroup ? toJid(config.adminGroup) : null
     const jidNum = (j: string) => j.split('@')[0]
-    const isAdminGroup = adminGroup != null && jidNum(fromJid) === jidNum(adminGroup)
+    // For fromMe messages msg.from is always the bot owner's @lid JID — use msg.to (the actual chat)
+    const chatJidForAdminCheck = msg.fromMe ? (msg.to || msg.from) : msg.from
+    const isAdminGroup = adminGroup != null && jidNum(chatJidForAdminCheck) === jidNum(adminGroup)
 
     // Skip bot's own messages in the admin group during the cooldown window.
     if (isAdminGroup && msg.fromMe && Date.now() < adminSendBlockedUntil) {

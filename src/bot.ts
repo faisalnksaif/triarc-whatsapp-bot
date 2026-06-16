@@ -369,7 +369,8 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
     const fromJid: string = msg.from
 
     // Always log every message so we can diagnose command delivery in production
-    console.log(`[bot:msg] from=${msg.from} to=${msg.to} fromMe=${msg.fromMe} isAdmin=${isAdmin()} body="${text.slice(0, 80)}"`)
+    const msgSender = msg.fromMe ? 'me' : (msg.author ?? msg.from)
+    console.log(`[bot:msg] sender=${msgSender} chat=${msg.from} fromMe=${msg.fromMe} isAdmin=${isAdmin()} body="${text.slice(0, 80)}"`)
 
     // Helper: resolve canonical group JID (works for both fromMe and admin senders)
     async function resolveTargetJid(): Promise<string | null> {

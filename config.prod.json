@@ -4,7 +4,7 @@
     { "name": "Kamaru Residence", "id": "120363303804815444@g.us" }
   ],
   "adminGroup": "120363427696640654@g.us",
-  "admins": ["120363303804815444@g.us", "919745447769@c.us"],
+  "admins": ["166636157976823@lid", "919745447769@c.us"],
   "timezone": "Asia/Kolkata",
   "questionsFile": "data/questions.json",
   "responsesDir": "responses"

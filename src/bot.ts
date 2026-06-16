@@ -16,6 +16,7 @@ interface SetConfigState {
   nextBatch: number      // index of the next batch to send (0-based)
   totalBatches: number
   pollIds: string[]      // sent poll message IDs, in order
+  sentMsgs: any[]        // all sent messages to delete after !finish
   selections: Map<string, string[]>  // pollId → selected set titles
 }
 
@@ -353,11 +354,14 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
     const poll = new Poll(`Select question sets (${label}):`, batch.map(s => s.title_en), { allowMultipleAnswers: true })
     const sent = await client.sendMessage(targetJid, poll)
     state.pollIds.push(sent.id._serialized)
+    state.sentMsgs.push(sent)
     state.nextBatch++
     if (state.nextBatch < state.totalBatches) {
-      await client.sendMessage(targetJid, `_Batch ${label} sent. Type *!n* for the next batch, or *!finish* when done selecting._`)
+      const hint = await client.sendMessage(targetJid, `_Batch ${label} sent. Type *!n* for the next batch, or *!finish* when done selecting._`)
+      state.sentMsgs.push(hint)
     } else {
-      await client.sendMessage(targetJid, `_Batch ${label} sent (last batch). Type *!finish* to save your selection._`)
+      const hint = await client.sendMessage(targetJid, `_Batch ${label} sent (last batch). Type *!finish* to save your selection._`)
+      state.sentMsgs.push(hint)
     }
   }
 
@@ -402,7 +406,7 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
         return
       }
       const totalBatches = Math.ceil(sets.length / 10)
-      const state: SetConfigState = { allSets: sets, nextBatch: 0, totalBatches, pollIds: [], selections: new Map() }
+      const state: SetConfigState = { allSets: sets, nextBatch: 0, totalBatches, pollIds: [], sentMsgs: [], selections: new Map() }
       pendingSetConfig.set(targetJid, state)
       await sendSetBatch(targetJid, state)
       return
@@ -448,6 +452,9 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       pendingSetConfig.delete(targetJid)
       const names = matched.map(s => `• ${s.title_en}`).join('\n')
       await client.sendMessage(targetJid, `✅ Schedule saved! From tomorrow (${effectiveFrom}) this group will receive:\n${names}`)
+      for (const m of state.sentMsgs) {
+        await m.delete(true).catch(() => {})
+      }
       return
     }
 

@@ -262,8 +262,9 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       }
       cronRegistered = true
 
-      // 9 AM daily poll: send set-selection polls to all recipients
-      scheduleQuestionnaire('9:00', config.timezone, async () => {
+      // Daily poll: send set-selection polls to all recipients
+      const pollTime = config.pollTime ?? '9:00'
+      scheduleQuestionnaire(pollTime, config.timezone, async () => {
         console.log(`[bot] 9 AM poll trigger — sending set-selection polls to ${scheduledJids.length} recipients`)
         dailyPollState.clear()
         const question = `📋 Select which question sets you want today:`

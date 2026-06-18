@@ -43,10 +43,11 @@ export interface Recipient {
 export interface BotConfig {
   recipients: Recipient[]
   adminGroup?: string
-  admins?: string[]   // phone numbers or JIDs allowed to use !q / !n / !finish
+  admins?: string[]
   timezone: string
   questionsFile: string
   responsesDir: string
+  pollTime?: string  // time for daily set-selection poll (H:MM or HH:MM format, default: 9:00)
 }
 
 export interface ActiveSession {

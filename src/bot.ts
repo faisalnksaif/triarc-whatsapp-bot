@@ -9,6 +9,7 @@ import { saveSession, upsertActiveSession, clearActiveSession, loadActiveSession
 import type { RecipientSchedule } from './storage.js'
 import { generateReport } from './reporter.js'
 import { parseReportIntent } from './ai.js'
+import { log, logError } from './logger.js'
 import type { BotConfig, QuestionnaireSet } from './types.js'
 
 interface DailyPollState {
@@ -270,22 +271,26 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       // Daily poll: send set-selection polls to all recipients
       const pollTime = config.pollTime ?? '9:00'
       scheduleQuestionnaire(pollTime, config.timezone, async () => {
-        console.log(`[bot] 9 AM poll trigger — sending set-selection polls to ${scheduledJids.length} recipients`)
+        log(`[bot] Daily poll trigger — sending set-selection polls to ${scheduledJids.length} recipients`)
         dailyPollState.clear()
         const question = `📋 Select which question sets you want today:`
         const options = sets.map(s => s.title_en)
+        log(`[bot] Poll options: [${options.join(', ')}]`)
         const poll = new Poll(question, options, { allowMultipleAnswers: true })
         for (const jid of scheduledJids) {
           try {
+            log(`[bot] Sending poll to ${jid}...`)
             const sent = await client.sendMessage(jid, poll)
+            log(`[bot] Poll send response`, { jid, id: sent?.id?._serialized, type: sent?.type })
             dailyPollState.set(jid, {
               pollMsg: sent,
               selectedSetIds: [],
               answered: false,
             })
-            console.log(`[bot] 9 AM poll sent to ${jid}`)
+            log(`[bot] ✅ Poll sent to ${jid}`)
+            await new Promise(r => setTimeout(r, 500))
           } catch (err) {
-            console.error(`[bot] Failed to send 9 AM poll to ${jid}:`, err)
+            logError(`[bot] ❌ Failed to send poll to ${jid}`, err)
           }
         }
       })

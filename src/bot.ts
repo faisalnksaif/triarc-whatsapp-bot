@@ -12,7 +12,7 @@ import { parseReportIntent } from './ai.js'
 import type { BotConfig, QuestionnaireSet } from './types.js'
 
 interface DailyPollState {
-  pollMsgId: string
+  pollMsg: any         // message object for deletion
   selectedSetIds: string[]
   answered: boolean
 }
@@ -126,6 +126,11 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       sessionMessages.delete(targetJid)
       for (const msg of msgs) {
         await msg.delete(true).catch(() => {})
+      }
+      // Also delete the 9 AM poll message if it exists
+      const pollState = dailyPollState.get(targetJid)
+      if (pollState?.pollMsg) {
+        await pollState.pollMsg.delete(true).catch(() => {})
       }
     }
 
@@ -273,9 +278,8 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
         for (const jid of scheduledJids) {
           try {
             const sent = await client.sendMessage(jid, poll)
-            const pollId = sent.id._serialized
             dailyPollState.set(jid, {
-              pollMsgId: pollId,
+              pollMsg: sent,
               selectedSetIds: [],
               answered: false,
             })
@@ -383,7 +387,7 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
 
     // Daily (9 AM) set-selection polls
     for (const [jid, state] of dailyPollState) {
-      if (state.pollMsgId === pollId) {
+      if (state.pollMsg.id._serialized === pollId) {
         const selected: string[] = (vote.selectedOptions ?? []).map((o: any) => o.name as string)
         const selectedIds = sets.filter(s => selected.includes(s.title_en)).map(s => s.id)
         state.selectedSetIds = selectedIds

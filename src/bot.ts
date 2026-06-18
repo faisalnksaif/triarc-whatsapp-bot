@@ -11,13 +11,10 @@ import { generateReport } from './reporter.js'
 import { parseReportIntent } from './ai.js'
 import type { BotConfig, QuestionnaireSet } from './types.js'
 
-interface SetConfigState {
-  allSets: QuestionnaireSet[]
-  nextBatch: number      // index of the next batch to send (0-based)
-  totalBatches: number
-  pollIds: string[]      // sent poll message IDs, in order
-  sentMsgs: any[]        // all sent messages to delete after !finish
-  selections: Map<string, string[]>  // pollId → selected set titles
+interface DailyPollState {
+  pollMsgId: string
+  selectedSetIds: string[]
+  answered: boolean
 }
 
 export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Promise<void> {
@@ -38,8 +35,8 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
   const sessionMessages = new Map<string, any[]>()
   // per-JID schedule override: which set IDs to send and from when
   const recipientSchedules = new Map<string, RecipientSchedule>()
-  // !q multi-batch poll flow state per JID
-  const pendingSetConfig = new Map<string, SetConfigState>()
+  // daily (9 AM) poll state per JID: which sets they selected for today
+  const dailyPollState = new Map<string, DailyPollState>()
   // Timestamp until which fromMe messages in the admin group should be ignored.
   // Extended on every bot send to prevent feedback loops (message_create fires before sendMessage resolves).
   let adminSendBlockedUntil = 0
@@ -199,23 +196,94 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
 
       for (const [time, timeSets] of setsByTime) {
         scheduleQuestionnaire(time, config.timezone, async () => {
+          const jidsAwaitingPollResponse = new Set<string>()
           for (const jid of scheduledJids) {
-            const schedule = recipientSchedules.get(jid)
-            const now = todayLocal()
-            const setsForJid = (schedule && schedule.effectiveFrom <= now)
-              ? timeSets.filter(s => schedule.setIds.includes(s.id))
+            const pollState = dailyPollState.get(jid)
+            if (pollState && !pollState.answered) {
+              console.log(`[bot] Scheduled send for ${jid}: still awaiting poll response, will send reminder every 30m`)
+              jidsAwaitingPollResponse.add(jid)
+              continue
+            }
+
+            const setsToSend = pollState?.selectedSetIds.length
+              ? sets.filter(s => pollState.selectedSetIds.includes(s.id))
               : timeSets
-            if (setsForJid.length === 0) continue
-            const [first, ...rest] = setsForJid
+
+            if (setsToSend.length === 0) continue
+            const [first, ...rest] = setsToSend
             if (rest.length > 0) {
               const queue = sessionQueues.get(jid) ?? []
               sessionQueues.set(jid, [...queue, ...rest])
             }
             await startSession(jid, first)
           }
+
+          // Set up reminders for those still waiting on poll
+          if (jidsAwaitingPollResponse.size > 0) {
+            const checkPollAnswers = async () => {
+              for (const jid of jidsAwaitingPollResponse) {
+                const pollState = dailyPollState.get(jid)
+                if (!pollState || pollState.answered) {
+                  jidsAwaitingPollResponse.delete(jid)
+                  if (pollState?.answered) {
+                    console.log(`[bot] ${jid} answered poll, starting questions`)
+                    const setsToSend = sets.filter(s => pollState.selectedSetIds.includes(s.id))
+                    if (setsToSend.length > 0) {
+                      const [first, ...rest] = setsToSend
+                      if (rest.length > 0) {
+                        const queue = sessionQueues.get(jid) ?? []
+                        sessionQueues.set(jid, [...queue, ...rest])
+                      }
+                      await startSession(jid, first)
+                    }
+                  }
+                  continue
+                }
+                await client.sendMessage(jid, '⏰ _Reminder: Please select your question sets in the poll above._').catch((err: any) => {
+                  console.error(`[bot] Failed to send reminder to ${jid}:`, err)
+                })
+              }
+              if (jidsAwaitingPollResponse.size === 0) clearInterval(reminderInterval)
+            }
+
+            // Check every 2 minutes for responses (catches fast responders), then every 30 min if still waiting
+            let checkCount = 0
+            const reminderInterval = setInterval(async () => {
+              await checkPollAnswers()
+              checkCount++
+              if (checkCount >= 15) {
+                // After 30 minutes of 2-min checks, reduce frequency to every 30 min
+                clearInterval(reminderInterval)
+                setInterval(checkPollAnswers, 30 * 60 * 1000)
+              }
+            }, 2 * 60 * 1000)
+          }
         })
       }
       cronRegistered = true
+
+      // 9 AM daily poll: send set-selection polls to all recipients
+      scheduleQuestionnaire('9:00', config.timezone, async () => {
+        console.log(`[bot] 9 AM poll trigger — sending set-selection polls to ${scheduledJids.length} recipients`)
+        dailyPollState.clear()
+        const question = `📋 Select which question sets you want today:`
+        const options = sets.map(s => s.title_en)
+        const poll = new Poll(question, options, { allowMultipleAnswers: true })
+        for (const jid of scheduledJids) {
+          try {
+            const sent = await client.sendMessage(jid, poll)
+            const pollId = sent.id._serialized
+            dailyPollState.set(jid, {
+              pollMsgId: pollId,
+              selectedSetIds: [],
+              answered: false,
+            })
+            console.log(`[bot] 9 AM poll sent to ${jid}`)
+          } catch (err) {
+            console.error(`[bot] Failed to send 9 AM poll to ${jid}:`, err)
+          }
+        }
+      })
     }
 
     // Load per-recipient schedule overrides
@@ -312,12 +380,14 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
   client.on('vote_update', async (vote: any) => {
     const pollId: string = vote.parentMessage?.id?._serialized ?? ''
 
-    // Set-config polls (from !q batches) — accumulate selections per poll
-    for (const [jid, state] of pendingSetConfig) {
-      if (state.pollIds.includes(pollId)) {
+    // Daily (9 AM) set-selection polls
+    for (const [jid, state] of dailyPollState) {
+      if (state.pollMsgId === pollId) {
         const selected: string[] = (vote.selectedOptions ?? []).map((o: any) => o.name as string)
-        state.selections.set(pollId, selected)
-        console.log(`[bot] Set-config vote for ${jid} poll ${pollId}: [${selected.join(', ')}]`)
+        const selectedIds = sets.filter(s => selected.includes(s.title_en)).map(s => s.id)
+        state.selectedSetIds = selectedIds
+        state.answered = true
+        console.log(`[bot] Daily poll vote for ${jid}: [${selected.join(', ')}]`)
         return
       }
     }
@@ -344,27 +414,6 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
     if (session) await session.handleTextReply(selected, contactName)
   })
 
-  // ── set-config batch helper ─────────────────────────────────────────────────
-
-  async function sendSetBatch(targetJid: string, state: SetConfigState): Promise<void> {
-    const batchNum = state.nextBatch
-    const start = batchNum * 10
-    const batch = state.allSets.slice(start, start + 10)
-    const label = `${batchNum + 1}/${state.totalBatches}`
-    const poll = new Poll(`Select question sets (${label}):`, batch.map(s => s.title_en), { allowMultipleAnswers: true })
-    const sent = await client.sendMessage(targetJid, poll)
-    state.pollIds.push(sent.id._serialized)
-    state.sentMsgs.push(sent)
-    state.nextBatch++
-    if (state.nextBatch < state.totalBatches) {
-      const hint = await client.sendMessage(targetJid, `_Batch ${label} sent. Type *!n* for the next batch, or *!finish* when done selecting._`)
-      state.sentMsgs.push(hint)
-    } else {
-      const hint = await client.sendMessage(targetJid, `_Batch ${label} sent (last batch). Type *!finish* to save your selection._`)
-      state.sentMsgs.push(hint)
-    }
-  }
-
   // ── incoming messages ───────────────────────────────────────────────────────
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -376,14 +425,6 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
     const msgSender = msg.fromMe ? 'me' : (msg.author ?? msg.from)
     console.log(`[bot:msg] sender=${msgSender} chat=${msg.from} fromMe=${msg.fromMe} isAdmin=${isAdmin()} body="${text.slice(0, 80)}"`)
 
-    // Helper: resolve canonical group JID (works for both fromMe and admin senders)
-    async function resolveTargetJid(): Promise<string | null> {
-      try {
-        const chat = await msg.getChat()
-        return chat.id._serialized
-      } catch { return null }
-    }
-
     // Helper: is the sender a configured admin?
     function isAdmin(): boolean {
       const adminJids = (config.admins ?? []).map(toJid)
@@ -391,77 +432,6 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       if (!sender) return false
       const senderNum = sender.split('@')[0]
       return adminJids.some(j => j.split('@')[0] === senderNum)
-    }
-
-    const isAuthorized = msg.fromMe || isAdmin()
-
-    // !q — start multi-batch poll flow (owner or admin only)
-    if (text.trim() === '!q' && isAuthorized) {
-      console.log(`[bot] !q received — fromMe=${msg.fromMe} from=${msg.from} author=${msg.author}`)
-      const targetJid = await resolveTargetJid()
-      if (!targetJid) { console.error('[bot] !q: could not resolve chat JID'); return }
-      console.log(`[bot] !q — targeting JID ${targetJid}, sets available: ${sets.length}`)
-      if (sets.length === 0) {
-        await client.sendMessage(targetJid, '⚠️ No questionnaire sets available.')
-        return
-      }
-      const totalBatches = Math.ceil(sets.length / 10)
-      const state: SetConfigState = { allSets: sets, nextBatch: 0, totalBatches, pollIds: [], sentMsgs: [], selections: new Map() }
-      pendingSetConfig.set(targetJid, state)
-      await sendSetBatch(targetJid, state)
-      return
-    }
-
-    // !n — send next batch in the poll flow (owner or admin only)
-    if (text.trim() === '!n' && isAuthorized) {
-      console.log(`[bot] !n received — fromMe=${msg.fromMe} from=${msg.from}`)
-      const targetJid = await resolveTargetJid()
-      if (!targetJid) return
-      const state = pendingSetConfig.get(targetJid)
-      if (!state) {
-        await client.sendMessage(targetJid, '⚠️ No active set selection. Type *!q* to start.')
-        return
-      }
-      if (state.nextBatch >= state.totalBatches) {
-        await client.sendMessage(targetJid, `_All ${state.totalBatches} batch(es) sent. Type *!finish* to save._`)
-        return
-      }
-      await sendSetBatch(targetJid, state)
-      return
-    }
-
-    // !finish — collect votes from all batches and save schedule (owner or admin only)
-    if (text.trim() === '!finish' && isAuthorized) {
-      const targetJid = await resolveTargetJid()
-      if (!targetJid) return
-      const state = pendingSetConfig.get(targetJid)
-      if (!state) return
-      const selectedTitles = new Set<string>()
-      for (const titles of state.selections.values()) {
-        for (const t of titles) selectedTitles.add(t)
-      }
-      const matched = state.allSets.filter(s => selectedTitles.has(s.title_en))
-      if (matched.length === 0) {
-        await client.sendMessage(targetJid, '⚠️ No sets selected. Pick from the polls first, then type *!finish*.')
-        return
-      }
-      const effectiveFrom = tomorrowLocal()
-      const setIds = matched.map(s => s.id)
-      await saveRecipientSchedule(targetJid, setIds, effectiveFrom)
-      recipientSchedules.set(targetJid, { jid: targetJid, setIds, effectiveFrom })
-      const msgsToDelete = state.sentMsgs.slice()
-      pendingSetConfig.delete(targetJid)
-      const names = matched.map(s => `• ${s.title_en}`).join('\n')
-      await client.sendMessage(targetJid, `✅ Schedule saved! From tomorrow (${effectiveFrom}) this group will receive:\n${names}`)
-      // Small delay so WhatsApp registers the messages before deletion
-      await new Promise(r => setTimeout(r, 1500))
-      console.log(`[bot] !finish — deleting ${msgsToDelete.length} set-config message(s)`)
-      for (const m of msgsToDelete) {
-        await m.delete(true).catch((err: any) => {
-          console.error(`[bot] Failed to delete set-config msg ${m.id?._serialized}:`, err?.message ?? err)
-        })
-      }
-      return
     }
 
     if (process.env.NODE_ENV !== 'production') {

@@ -13,8 +13,8 @@ import { log, logError } from './logger.js'
 import type { BotConfig, QuestionnaireSet } from './types.js'
 
 interface DailyPollState {
-  pollMsgs: any[]      // message objects for deletion (multiple batches)
-  selectedSetIds: string[]
+  pollMsgs: any[]                            // message objects for deletion (multiple batches)
+  pollSelections: Map<string, string[]>      // pollId → selected set IDs (to handle deselections)
   answered: boolean
 }
 
@@ -64,6 +64,16 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
 
   function markGreeted(jid: string): void {
     greetedCache.set(jid, todayLocal())
+  }
+
+  function getAggregatedSelections(pollState: DailyPollState): string[] {
+    const allSelections = new Set<string>()
+    for (const selections of pollState.pollSelections.values()) {
+      for (const id of selections) {
+        allSelections.add(id)
+      }
+    }
+    return Array.from(allSelections)
   }
 
   const client = new Client({
@@ -213,8 +223,9 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
               continue
             }
 
-            const setsToSend = pollState?.selectedSetIds.length
-              ? sets.filter(s => pollState.selectedSetIds.includes(s.id))
+            const selectedIds = pollState ? getAggregatedSelections(pollState) : []
+            const setsToSend = selectedIds.length
+              ? sets.filter(s => selectedIds.includes(s.id))
               : timeSets
 
             if (setsToSend.length === 0) continue
@@ -235,7 +246,7 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
                   jidsAwaitingPollResponse.delete(jid)
                   if (pollState?.answered) {
                     console.log(`[bot] ${jid} answered poll, starting questions`)
-                    const setsToSend = sets.filter(s => pollState.selectedSetIds.includes(s.id))
+                    const setsToSend = sets.filter(s => pollState.pollSelections.includes(s.id))
                     if (setsToSend.length > 0) {
                       const [first, ...rest] = setsToSend
                       if (rest.length > 0) {
@@ -303,10 +314,14 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
           if (pollMsgs.length > 0) {
             dailyPollState.set(jid, {
               pollMsgs,
-              selectedSetIds: [],
+              pollSelections: [],
               answered: false,
             })
             log(`[bot] Poll state set for ${jid} with ${pollMsgs.length} batch(es)`)
+            // Send instruction message
+            await client.sendMessage(jid, '👆 Select which sets you want, then type *!finish* when done.').catch((err: any) => {
+              logError(`[bot] Failed to send instruction message to ${jid}`, err)
+            })
           }
         }
       })
@@ -317,6 +332,43 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       recipientSchedules.set(s.jid, s)
     }
     console.log(`[bot] Loaded ${recipientSchedules.size} recipient schedule override(s)`)
+
+    // Send pending questions for recipients with schedule for today, but only if their scheduled time has passed
+    const now = todayLocal()
+    for (const [jid, schedule] of recipientSchedules) {
+      if (schedule.effectiveFrom <= now) {
+        const selectedSets = sets.filter(s => schedule.setIds.includes(s.id))
+        // Only send sets whose scheduled time has already passed (in the configured timezone)
+        const nowFormatted = new Date().toLocaleTimeString('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: config.timezone,
+          hour12: false
+        })
+        const [nowHour, nowMinute] = nowFormatted.split(':').map(Number)
+        const nowInMinutes = nowHour * 60 + nowMinute
+
+        const [readyToSend, futureRuns] = selectedSets.reduce(
+          (acc, set) => {
+            const [h, m] = set.scheduleTime.split(':').map(Number)
+            const setTimeInMinutes = h * 60 + m
+            return nowInMinutes >= setTimeInMinutes ? [acc[0].concat(set), acc[1]] : [acc[0], acc[1].concat(set)]
+          },
+          [[] as QuestionnaireSet[], [] as QuestionnaireSet[]]
+        )
+        if (readyToSend.length > 0) {
+          const [first, ...rest] = readyToSend
+          if (rest.length > 0) {
+            const queue = sessionQueues.get(jid) ?? []
+            sessionQueues.set(jid, [...queue, ...rest])
+          }
+          log(`[bot] Sending pending questions for ${jid} (${readyToSend.length} set(s), ${futureRuns.length} scheduled for later)`)
+          await startSession(jid, first).catch(err => logError('[bot] Failed to start pending session:', err))
+        } else if (futureRuns.length > 0) {
+          log(`[bot] ${jid} has selections but all are scheduled for later (next: ${futureRuns[0].scheduleTime})`)
+        }
+      }
+    }
 
     // Warm up in-memory lang cache from file so restarts don't re-ask language today
     const today = todayLocal()
@@ -412,9 +464,9 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       if (matchingPoll) {
         const selected: string[] = (vote.selectedOptions ?? []).map((o: any) => o.name as string)
         const selectedIds = sets.filter(s => selected.includes(s.title_en)).map(s => s.id)
-        state.selectedSetIds.push(...selectedIds)
+        state.pollSelections.push(...selectedIds)
         state.answered = true
-        log(`[bot] Daily poll vote for ${jid}: [${selected.join(', ')}] → total selected: ${state.selectedSetIds.length} set(s)`)
+        log(`[bot] Daily poll vote for ${jid}: [${selected.join(', ')}] → total selected: ${state.pollSelections.length} set(s)`)
         return
       }
     }
@@ -474,6 +526,67 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
     if (text.trim() === '!start') {
       console.log(`[bot] Manual trigger — starting questionnaire for ${fromJid}`)
       startSession(fromJid, sets[0]).catch(err => console.error('[bot] startSession error:', err))
+      return
+    }
+
+    // !finish — finalize daily poll selections and store in database
+    if (text.trim() === '!finish') {
+      // In group chats, resolve to the group JID (not the user's personal JID)
+      let targetJid = fromJid
+      try {
+        const chat = await msg.getChat()
+        targetJid = chat.id._serialized
+      } catch {
+        // fallback to fromJid if we can't get the chat
+      }
+      const pollState = dailyPollState.get(targetJid)
+      if (!pollState) {
+        await client.sendMessage(targetJid, '⚠️ No active poll. Wait for the daily poll at ' + (config.pollTime ?? '9:00') + ' to start selecting.')
+        return
+      }
+      if (pollState.pollSelections.length === 0) {
+        await client.sendMessage(targetJid, '⚠️ No sets selected. Please select at least one set from the polls.')
+        return
+      }
+      const selectedSets = sets.filter(s => pollState.pollSelections.includes(s.id))
+      const effectiveFrom = todayLocal()
+      const setIds = selectedSets.map(s => s.id)
+      await saveRecipientSchedule(targetJid, setIds, effectiveFrom)
+      const names = selectedSets.map(s => `• ${s.title_en}`).join('\n')
+      await client.sendMessage(targetJid, `✅ Selection saved! Today you'll receive:\n${names}`)
+      log(`[bot] !finish — stored ${setIds.length} set(s) for ${targetJid}`)
+
+      // Delete poll messages
+      for (const pollMsg of pollState.pollMsgs) {
+        await pollMsg.delete(true).catch(() => {})
+      }
+
+      // Send questions immediately if their scheduled time has already passed
+      const nowFormatted = new Date().toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: config.timezone,
+        hour12: false
+      })
+      const [nowHour, nowMinute] = nowFormatted.split(':').map(Number)
+      const nowInMinutes = nowHour * 60 + nowMinute
+
+      const readyToSend = selectedSets.filter(set => {
+        const [h, m] = set.scheduleTime.split(':').map(Number)
+        const setTimeInMinutes = h * 60 + m
+        return nowInMinutes >= setTimeInMinutes
+      })
+
+      if (readyToSend.length > 0) {
+        const [first, ...rest] = readyToSend
+        if (rest.length > 0) {
+          const queue = sessionQueues.get(targetJid) ?? []
+          sessionQueues.set(targetJid, [...queue, ...rest])
+        }
+        log(`[bot] !finish — sending ${readyToSend.length} set(s) now (scheduled time passed)`)
+        await startSession(targetJid, first).catch(err => logError('[bot] Failed to start session after !finish:', err))
+      }
+
       return
     }
 

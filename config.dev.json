@@ -6,5 +6,6 @@
   "adminGroup": "166636157976823@lid",
   "timezone": "Asia/Kolkata",
   "questionsFile": "data/questions.json",
-  "responsesDir": "responses"
+  "responsesDir": "responses",
+  "pollTime": "14:17"
 }

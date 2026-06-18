@@ -5,7 +5,7 @@
   ],
   "adminGroup": "120363427696640654@g.us",
   "admins": ["166636157976823@lid", "919745447769@c.us", "140226420846782@lid"],
-  "pollTime": "13:45",
+  "pollTime": "13:49",
   "_pollTime_format": "H:MM or HH:MM in 24-hour format (default: 9:00)",
   "timezone": "Asia/Kolkata",
   "questionsFile": "data/questions.json",

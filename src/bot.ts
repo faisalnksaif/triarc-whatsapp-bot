@@ -13,7 +13,7 @@ import { log, logError } from './logger.js'
 import type { BotConfig, QuestionnaireSet } from './types.js'
 
 interface DailyPollState {
-  pollMsg: any         // message object for deletion
+  pollMsgs: any[]      // message objects for deletion (multiple batches)
   selectedSetIds: string[]
   answered: boolean
 }
@@ -128,10 +128,12 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       for (const msg of msgs) {
         await msg.delete(true).catch(() => {})
       }
-      // Also delete the 9 AM poll message if it exists
+      // Also delete the 9 AM poll messages if they exist
       const pollState = dailyPollState.get(targetJid)
-      if (pollState?.pollMsg) {
-        await pollState.pollMsg.delete(true).catch(() => {})
+      if (pollState?.pollMsgs) {
+        for (const msg of pollState.pollMsgs) {
+          await msg.delete(true).catch(() => {})
+        }
       }
     }
 
@@ -268,29 +270,43 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       }
       cronRegistered = true
 
-      // Daily poll: send set-selection polls to all recipients
+      // Daily poll: send set-selection polls to all recipients (split into batches of max 12 options)
       const pollTime = config.pollTime ?? '9:00'
       scheduleQuestionnaire(pollTime, config.timezone, async () => {
         log(`[bot] Daily poll trigger — sending set-selection polls to ${scheduledJids.length} recipients`)
         dailyPollState.clear()
-        const question = `📋 Select which question sets you want today:`
-        const options = sets.map(s => s.title_en)
-        log(`[bot] Poll options: [${options.join(', ')}]`)
-        const poll = new Poll(question, options, { allowMultipleAnswers: true })
+        const allOptions = sets.map(s => s.title_en)
+        const batchSize = 10
+        const batches = []
+        for (let i = 0; i < allOptions.length; i += batchSize) {
+          batches.push(allOptions.slice(i, i + batchSize))
+        }
+        log(`[bot] Splitting ${allOptions.length} sets into ${batches.length} poll batch(es)`)
+
         for (const jid of scheduledJids) {
-          try {
-            log(`[bot] Sending poll to ${jid}...`)
-            const sent = await client.sendMessage(jid, poll)
-            log(`[bot] Poll send response`, { jid, id: sent?.id?._serialized, type: sent?.type })
+          const pollMsgs: any[] = []
+          for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+            try {
+              const options = batches[batchIdx]
+              const batchLabel = batches.length > 1 ? ` (${batchIdx + 1}/${batches.length})` : ''
+              const question = `📋 Select which question sets you want today${batchLabel}:`
+              log(`[bot] Sending poll batch ${batchIdx + 1}/${batches.length} to ${jid} with ${options.length} options`)
+              const poll = new Poll(question, options, { allowMultipleAnswers: true })
+              const sent = await client.sendMessage(jid, poll)
+              pollMsgs.push(sent)
+              log(`[bot] ✅ Poll batch ${batchIdx + 1} sent to ${jid}`)
+              await new Promise(r => setTimeout(r, 500))
+            } catch (err) {
+              logError(`[bot] ❌ Failed to send poll batch ${batchIdx + 1} to ${jid}`, err)
+            }
+          }
+          if (pollMsgs.length > 0) {
             dailyPollState.set(jid, {
-              pollMsg: sent,
+              pollMsgs,
               selectedSetIds: [],
               answered: false,
             })
-            log(`[bot] ✅ Poll sent to ${jid}`)
-            await new Promise(r => setTimeout(r, 500))
-          } catch (err) {
-            logError(`[bot] ❌ Failed to send poll to ${jid}`, err)
+            log(`[bot] Poll state set for ${jid} with ${pollMsgs.length} batch(es)`)
           }
         }
       })
@@ -390,14 +406,15 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
   client.on('vote_update', async (vote: any) => {
     const pollId: string = vote.parentMessage?.id?._serialized ?? ''
 
-    // Daily (9 AM) set-selection polls
+    // Daily (9 AM) set-selection polls (multiple batches per JID)
     for (const [jid, state] of dailyPollState) {
-      if (state.pollMsg.id._serialized === pollId) {
+      const matchingPoll = state.pollMsgs.find(msg => msg.id._serialized === pollId)
+      if (matchingPoll) {
         const selected: string[] = (vote.selectedOptions ?? []).map((o: any) => o.name as string)
         const selectedIds = sets.filter(s => selected.includes(s.title_en)).map(s => s.id)
-        state.selectedSetIds = selectedIds
+        state.selectedSetIds.push(...selectedIds)
         state.answered = true
-        console.log(`[bot] Daily poll vote for ${jid}: [${selected.join(', ')}]`)
+        log(`[bot] Daily poll vote for ${jid}: [${selected.join(', ')}] → total selected: ${state.selectedSetIds.length} set(s)`)
         return
       }
     }

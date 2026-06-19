@@ -246,7 +246,8 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
                   jidsAwaitingPollResponse.delete(jid)
                   if (pollState?.answered) {
                     console.log(`[bot] ${jid} answered poll, starting questions`)
-                    const setsToSend = sets.filter(s => pollState.pollSelections.includes(s.id))
+                    const selectedIds = getAggregatedSelections(pollState)
+                    const setsToSend = sets.filter(s => selectedIds.includes(s.id))
                     if (setsToSend.length > 0) {
                       const [first, ...rest] = setsToSend
                       if (rest.length > 0) {
@@ -314,7 +315,7 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
           if (pollMsgs.length > 0) {
             dailyPollState.set(jid, {
               pollMsgs,
-              pollSelections: [],
+              pollSelections: new Map(),
               answered: false,
             })
             log(`[bot] Poll state set for ${jid} with ${pollMsgs.length} batch(es)`)
@@ -464,9 +465,10 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
       if (matchingPoll) {
         const selected: string[] = (vote.selectedOptions ?? []).map((o: any) => o.name as string)
         const selectedIds = sets.filter(s => selected.includes(s.title_en)).map(s => s.id)
-        state.pollSelections.push(...selectedIds)
+        state.pollSelections.set(pollId, selectedIds)
         state.answered = true
-        log(`[bot] Daily poll vote for ${jid}: [${selected.join(', ')}] → total selected: ${state.pollSelections.length} set(s)`)
+        const totalSelected = getAggregatedSelections(state).length
+        log(`[bot] Daily poll vote for ${jid}: [${selected.join(', ')}] → total selected: ${totalSelected} set(s)`)
         return
       }
     }
@@ -544,11 +546,12 @@ export async function startBot(config: BotConfig, sets: QuestionnaireSet[]): Pro
         await client.sendMessage(targetJid, '⚠️ No active poll. Wait for the daily poll at ' + (config.pollTime ?? '9:00') + ' to start selecting.')
         return
       }
-      if (pollState.pollSelections.length === 0) {
+      const selectedIds = getAggregatedSelections(pollState)
+      if (selectedIds.length === 0) {
         await client.sendMessage(targetJid, '⚠️ No sets selected. Please select at least one set from the polls.')
         return
       }
-      const selectedSets = sets.filter(s => pollState.pollSelections.includes(s.id))
+      const selectedSets = sets.filter(s => selectedIds.includes(s.id))
       const effectiveFrom = todayLocal()
       const setIds = selectedSets.map(s => s.id)
       await saveRecipientSchedule(targetJid, setIds, effectiveFrom)
